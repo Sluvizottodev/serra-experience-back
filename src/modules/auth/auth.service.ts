@@ -1,0 +1,205 @@
+import bcrypt from 'bcrypt'
+import { prisma } from '../../common/config/prisma'
+import { sendMail } from '../../common/config/mailer'
+import { AppError } from '../../common/middlewares/error.middleware'
+import { signAccessToken, signRefreshToken, verifyRefreshToken } from '../../common/utils/jwt'
+import { generateOtp, generateSecureToken } from '../../common/utils/otp'
+import type { RegisterInput, LoginInput, VerifyOtpInput, ForgotPasswordInput, ResetPasswordInput } from './auth.schema'
+
+const MAX_LOGIN_ATTEMPTS = 5
+const OTP_EXPIRY_MINUTES = 10
+
+export class AuthService {
+  async register(data: RegisterInput) {
+    const existing = await prisma.user.findUnique({ where: { email: data.email } })
+    if (existing) throw new AppError(409, 'Este e-mail já está cadastrado no sistema')
+
+    const hashed = await bcrypt.hash(data.password, 12)
+    const user = await prisma.user.create({
+      data: {
+        name: data.name,
+        email: data.email,
+        password: hashed,
+        phone: data.phone,
+        cpf: data.cpf,
+        role: data.role,
+      },
+    })
+
+    await this.sendOtp(user.id, user.email)
+    return { message: 'Conta criada. Verifique seu e-mail para confirmar.' }
+  }
+
+  async sendOtp(userId: string, email: string) {
+    await prisma.otp.deleteMany({ where: { userId } })
+    const code = generateOtp()
+    const expiresAt = new Date(Date.now() + OTP_EXPIRY_MINUTES * 60 * 1000)
+    await prisma.otp.create({ data: { code, userId, expiresAt } })
+
+    await sendMail(
+      email,
+      'Código de verificação - Viagem com Motorista',
+      `<h2>Seu código de verificação é: <strong>${code}</strong></h2><p>Expira em ${OTP_EXPIRY_MINUTES} minutos.</p>`
+    )
+  }
+
+  async verifyOtp(data: VerifyOtpInput) {
+    const user = await prisma.user.findUnique({ where: { email: data.email } })
+    if (!user) throw new AppError(404, 'Usuário não encontrado')
+
+    const otp = await prisma.otp.findFirst({
+      where: { userId: user.id, code: data.code },
+      orderBy: { createdAt: 'desc' },
+    })
+
+    if (!otp) throw new AppError(400, 'Código de verificação inválido')
+    if (otp.expiresAt < new Date()) throw new AppError(400, 'Código de verificação expirado. Solicite um novo.')
+
+    await prisma.user.update({ where: { id: user.id }, data: { isVerified: true } })
+    await prisma.otp.deleteMany({ where: { userId: user.id } })
+
+    return { message: 'E-mail verificado com sucesso' }
+  }
+
+  async login(data: LoginInput, res: import('express').Response) {
+    const user = await prisma.user.findUnique({ where: { email: data.email } })
+    if (!user) throw new AppError(401, 'Credenciais inválidas. Verifique seu e-mail e senha.')
+
+    if (user.isLocked) throw new AppError(403, 'Sua conta foi bloqueada por múltiplas tentativas de login. Contate o suporte.')
+
+    const valid = await bcrypt.compare(data.password, user.password)
+    if (!valid) {
+      const attempts = user.loginAttempts + 1
+      const locked = attempts >= MAX_LOGIN_ATTEMPTS
+      await prisma.user.update({
+        where: { id: user.id },
+        data: { loginAttempts: attempts, isLocked: locked },
+      })
+      throw new AppError(401, `Credenciais inválidas. Tentativas restantes: ${MAX_LOGIN_ATTEMPTS - attempts}`)
+    }
+
+    await prisma.user.update({ where: { id: user.id }, data: { loginAttempts: 0 } })
+
+    const payload = { id: user.id, role: user.role, email: user.email }
+    const accessToken = signAccessToken(payload)
+    const refreshToken = signRefreshToken(payload)
+
+    await prisma.refreshToken.create({
+      data: {
+        token: refreshToken,
+        userId: user.id,
+        expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+      },
+    })
+
+    res.cookie('refreshToken', refreshToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'strict',
+      maxAge: 30 * 24 * 60 * 60 * 1000,
+    })
+
+    return {
+      accessToken,
+      user: {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        isVerified: user.isVerified,
+        avatarUrl: user.avatarUrl,
+      },
+    }
+  }
+
+  async refreshToken(token: string, res: import('express').Response) {
+    if (!token) throw new AppError(401, 'Refresh token não fornecido')
+
+    const stored = await prisma.refreshToken.findUnique({ where: { token } })
+    if (!stored || stored.expiresAt < new Date()) throw new AppError(401, 'Sessão expirada. Faça login novamente.')
+
+    const payload = verifyRefreshToken(token)
+    const user = await prisma.user.findUnique({ where: { id: payload.id } })
+    if (!user) throw new AppError(404, 'Usuário não encontrado')
+
+    await prisma.refreshToken.delete({ where: { token } })
+
+    const newPayload = { id: user.id, role: user.role, email: user.email }
+    const accessToken = signAccessToken(newPayload)
+    const newRefreshToken = signRefreshToken(newPayload)
+
+    await prisma.refreshToken.create({
+      data: {
+        token: newRefreshToken,
+        userId: user.id,
+        expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+      },
+    })
+
+    res.cookie('refreshToken', newRefreshToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'strict',
+      maxAge: 30 * 24 * 60 * 60 * 1000,
+    })
+
+    return { accessToken }
+  }
+
+  async logout(token: string, refreshToken: string, res: import('express').Response) {
+    const decoded = (() => {
+      try {
+        const jwt = require('jsonwebtoken')
+        return jwt.decode(token) as { exp?: number } | null
+      } catch {
+        return null
+      }
+    })()
+
+    const expiresAt = decoded?.exp ? new Date(decoded.exp * 1000) : new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
+
+    await prisma.tokenBlacklist.create({ data: { token, expiresAt } })
+
+    if (refreshToken) {
+      await prisma.refreshToken.deleteMany({ where: { token: refreshToken } })
+    }
+
+    res.clearCookie('refreshToken')
+    return { message: 'Logout realizado com sucesso' }
+  }
+
+  async forgotPassword(data: ForgotPasswordInput) {
+    const user = await prisma.user.findUnique({ where: { email: data.email } })
+    if (!user) return { message: 'Se o e-mail existir, você receberá as instruções.' }
+
+    const token = generateSecureToken()
+    const expiresAt = new Date(Date.now() + 60 * 60 * 1000)
+
+    await prisma.otp.deleteMany({ where: { userId: user.id } })
+    await prisma.otp.create({ data: { code: token, userId: user.id, expiresAt } })
+
+    const resetUrl = `${process.env.CORS_ORIGIN}/reset-password?token=${token}`
+    await sendMail(
+      user.email,
+      'Redefinição de senha - Viagem com Motorista',
+      `<p>Clique no link para redefinir sua senha:</p><a href="${resetUrl}">${resetUrl}</a><p>Expira em 1 hora.</p>`
+    )
+
+    return { message: 'Se o e-mail existir, você receberá as instruções.' }
+  }
+
+  async resetPassword(data: ResetPasswordInput) {
+    const otp = await prisma.otp.findFirst({
+      where: { code: data.token },
+      include: { user: true },
+    })
+
+    if (!otp || otp.expiresAt < new Date()) throw new AppError(400, 'Link de redefinição inválido ou expirado. Solicite um novo.')
+
+    const hashed = await bcrypt.hash(data.password, 12)
+    await prisma.user.update({ where: { id: otp.userId }, data: { password: hashed } })
+    await prisma.otp.deleteMany({ where: { userId: otp.userId } })
+
+    return { message: 'Senha redefinida com sucesso' }
+  }
+}

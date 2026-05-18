@@ -1,0 +1,22 @@
+import { Request, Response } from 'express'
+import { PaymentService } from './payment.service'
+import { AuthRequest } from '../../common/types'
+
+const service = new PaymentService()
+
+export class PaymentController {
+  async createCharge(req: AuthRequest, res: Response) {
+    const data = await service.createCharge(req.params.tripId, req.user!.id)
+    res.status(201).json(data)
+  }
+
+  async getPaymentStatus(req: AuthRequest, res: Response) {
+    const data = await service.getPaymentStatus(req.params.tripId, req.user!.id)
+    res.json(data)
+  }
+
+  async handleWebhook(req: Request, res: Response) {
+    const data = await service.handleWebhook(req.body)
+    res.json(data)
+  }
+}
