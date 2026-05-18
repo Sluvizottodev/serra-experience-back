@@ -39,7 +39,7 @@ export const updateDriverProfileSchema = createDriverProfileSchema.partial()
 export const availabilitySchema = z.object({
   date: z.string()
     .regex(/^\d{4}-\d{2}-\d{2}$/, 'Formato de data inválido (YYYY-MM-DD)')
-    .refine((date) => new Date(date) >= new Date().toISOString().split('T')[0], 'Data deve ser hoje ou no futuro'),
+    .refine((date) => date >= new Date().toISOString().split('T')[0], 'Data deve ser hoje ou no futuro'),
   startTime: z.string()
     .regex(/^\d{2}:\d{2}$/, 'Formato de hora inválido (HH:MM)'),
   endTime: z.string()

@@ -15,7 +15,7 @@ export class AdminController {
       res.status(400).json({ error: 'Ação inválida' })
       return
     }
-    const data = await service.verifyUserDocument(req.params.id, action)
+    const data = await service.verifyUserDocument(String(req.params.id), action)
     res.json(data)
   }
 
@@ -27,7 +27,7 @@ export class AdminController {
 
   async approveDriver(req: Request, res: Response) {
     const { approved } = req.body
-    const data = await service.approveDriver(req.params.id, Boolean(approved))
+    const data = await service.approveDriver(String(req.params.id), Boolean(approved))
     res.json(data)
   }
 

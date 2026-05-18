@@ -11,7 +11,7 @@ export class DriverController {
   }
 
   async getDriver(req: Request, res: Response) {
-    const data = await service.getDriver(req.params.id)
+    const data = await service.getDriver(String(req.params.id))
     res.json(data)
   }
 
@@ -45,12 +45,12 @@ export class DriverController {
   }
 
   async updateAvailability(req: AuthRequest, res: Response) {
-    const data = await service.updateAvailability(req.user!.id, req.params.id, req.body)
+    const data = await service.updateAvailability(req.user!.id, String(req.params.id), req.body)
     res.json(data)
   }
 
   async deleteAvailability(req: AuthRequest, res: Response) {
-    const data = await service.deleteAvailability(req.user!.id, req.params.id)
+    const data = await service.deleteAvailability(req.user!.id, String(req.params.id))
     res.json(data)
   }
 }
