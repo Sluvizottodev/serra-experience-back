@@ -18,7 +18,7 @@ export class QuoteController {
   }
 
   async getQuote(req: AuthRequest, res: Response) {
-    const data = await service.getQuote(req.params.id, req.user!.id)
+    const data = await service.getQuote(String(req.params.id), req.user!.id)
     res.json(data)
   }
 
@@ -30,17 +30,17 @@ export class QuoteController {
   }
 
   async respondToQuote(req: AuthRequest, res: Response) {
-    const data = await service.respondToQuote(req.params.id, req.user!.id, req.body)
+    const data = await service.respondToQuote(String(req.params.id), req.user!.id, req.body)
     res.json(data)
   }
 
   async acceptQuote(req: AuthRequest, res: Response) {
-    const data = await service.acceptQuote(req.params.id, req.user!.id)
+    const data = await service.acceptQuote(String(req.params.id), req.user!.id)
     res.json(data)
   }
 
   async rejectQuote(req: AuthRequest, res: Response) {
-    const data = await service.rejectQuote(req.params.id, req.user!.id)
+    const data = await service.rejectQuote(String(req.params.id), req.user!.id)
     res.json(data)
   }
 }

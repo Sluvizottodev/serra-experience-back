@@ -6,12 +6,12 @@ const service = new PaymentService()
 
 export class PaymentController {
   async createCharge(req: AuthRequest, res: Response) {
-    const data = await service.createCharge(req.params.tripId, req.user!.id)
+    const data = await service.createCharge(String(req.params.tripId), req.user!.id)
     res.status(201).json(data)
   }
 
   async getPaymentStatus(req: AuthRequest, res: Response) {
-    const data = await service.getPaymentStatus(req.params.tripId, req.user!.id)
+    const data = await service.getPaymentStatus(String(req.params.tripId), req.user!.id)
     res.json(data)
   }
 

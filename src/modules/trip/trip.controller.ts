@@ -13,22 +13,22 @@ export class TripController {
   }
 
   async getTrip(req: AuthRequest, res: Response) {
-    const data = await service.getTrip(req.params.id, req.user!.id, req.user!.role)
+    const data = await service.getTrip(String(req.params.id), req.user!.id, req.user!.role)
     res.json(data)
   }
 
   async updateTripStatus(req: AuthRequest, res: Response) {
-    const data = await service.updateTripStatus(req.params.id, req.user!.id, req.body)
+    const data = await service.updateTripStatus(String(req.params.id), req.user!.id, req.body)
     res.json(data)
   }
 
   async cancelTrip(req: AuthRequest, res: Response) {
-    const data = await service.cancelTrip(req.params.id, req.user!.id, req.user!.role, req.body)
+    const data = await service.cancelTrip(String(req.params.id), req.user!.id, req.user!.role, req.body)
     res.json(data)
   }
 
   async reviewTrip(req: AuthRequest, res: Response) {
-    const data = await service.reviewTrip(req.params.id, req.user!.id, req.body)
+    const data = await service.reviewTrip(String(req.params.id), req.user!.id, req.body)
     res.json(data)
   }
 }

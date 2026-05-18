@@ -1,5 +1,5 @@
 import { prisma } from '../../common/config/prisma'
-import { Severity } from '@prisma/client'
+import { Severity, Prisma } from '@prisma/client'
 
 interface LogPaymentOptions {
   operationType: string
@@ -36,8 +36,8 @@ export class PaymentLoggerService {
           requestId: opts.requestId,
           status: opts.status,
           severity: opts.severity || 'INFO',
-          requestPayloadSanitized: opts.requestPayload ? sanitize(opts.requestPayload) : undefined,
-          responsePayloadSanitized: opts.responsePayload ? sanitize(opts.responsePayload) : undefined,
+          requestPayloadSanitized: opts.requestPayload ? sanitize(opts.requestPayload) as Prisma.InputJsonValue : undefined,
+          responsePayloadSanitized: opts.responsePayload ? sanitize(opts.responsePayload) as Prisma.InputJsonValue : undefined,
           durationMs: opts.durationMs,
         },
       })

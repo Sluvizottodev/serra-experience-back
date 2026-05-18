@@ -1,5 +1,5 @@
 import ExcelJS from 'exceljs'
-import { stringify } from 'fast-csv'
+import * as fastCsv from 'fast-csv'
 import { prisma } from '../../common/config/prisma'
 import { Response } from 'express'
 
@@ -90,7 +90,7 @@ export class ReportService {
 
     res.setHeader('Content-Type', 'text/csv')
     res.setHeader('Content-Disposition', 'attachment; filename=viagens.csv')
-    stringify(rows, { headers: true }).pipe(res)
+    fastCsv.write(rows, { headers: true }).pipe(res)
   }
 
   async getRevenue(filters: { from?: string; to?: string }) {
