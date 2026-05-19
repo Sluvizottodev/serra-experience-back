@@ -6,7 +6,6 @@ import { signAccessToken, signRefreshToken, verifyRefreshToken } from '../../com
 import { generateOtp, generateSecureToken } from '../../common/utils/otp'
 import type { RegisterInput, LoginInput, VerifyOtpInput, ForgotPasswordInput, ResetPasswordInput } from './auth.schema'
 
-const MAX_LOGIN_ATTEMPTS = 5
 const OTP_EXPIRY_MINUTES = 10
 
 export class AuthService {
@@ -65,20 +64,8 @@ export class AuthService {
     const user = await prisma.user.findUnique({ where: { email: data.email } })
     if (!user) throw new AppError(401, 'Credenciais inválidas. Verifique seu e-mail e senha.')
 
-    if (user.isLocked) throw new AppError(403, 'Sua conta foi bloqueada por múltiplas tentativas de login. Contate o suporte.')
-
     const valid = await bcrypt.compare(data.password, user.password)
-    if (!valid) {
-      const attempts = user.loginAttempts + 1
-      const locked = attempts >= MAX_LOGIN_ATTEMPTS
-      await prisma.user.update({
-        where: { id: user.id },
-        data: { loginAttempts: attempts, isLocked: locked },
-      })
-      throw new AppError(401, `Credenciais inválidas. Tentativas restantes: ${MAX_LOGIN_ATTEMPTS - attempts}`)
-    }
-
-    await prisma.user.update({ where: { id: user.id }, data: { loginAttempts: 0 } })
+    if (!valid) throw new AppError(401, 'Credenciais inválidas. Verifique seu e-mail e senha.')
 
     const payload = { id: user.id, role: user.role, email: user.email }
     const accessToken = signAccessToken(payload)
