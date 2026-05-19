@@ -44,7 +44,7 @@ export class DriverService {
 
       where.OR = [
         {
-          availability: {
+          availabilities: {
             some: {
               date: { gte: day, lt: nextDay },
               isAvailable: true,
@@ -52,7 +52,7 @@ export class DriverService {
           },
         },
         {
-          availability: { none: {} },
+          availabilities: { none: {} },
         },
       ]
     }
