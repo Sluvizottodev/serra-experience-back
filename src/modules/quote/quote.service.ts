@@ -179,15 +179,17 @@ export class QuoteService {
       }
     }
 
-    // Tenta calcular distância real via OpenRouteService
+    // Tenta calcular distância real via Nominatim + ORS (fallback: Haversine)
     let distanceKm: number | null = null
     let durationMin: number | null = null
+    let distanceMethod: 'route' | 'estimate' | null = null
     try {
       const route = await getRouteDistance(data.originAddress, data.destinationAddress)
-      distanceKm = route.distanceKm
-      durationMin = route.durationMin
-    } catch {
-      // API não configurada ou falhou — preview sem distância
+      distanceKm    = route.distanceKm
+      durationMin   = route.durationMin
+      distanceMethod = route.method
+    } catch (err) {
+      console.warn('[preview] cálculo de distância falhou:', (err as Error).message)
     }
 
     const rates = drivers.map(d => ({
@@ -213,13 +215,16 @@ export class QuoteService {
       availableDrivers: drivers.length,
       distanceKm,
       durationMin,
+      distanceMethod,
       estimatedRange,
       commissionRate,
       rates: { minPerKm, maxPerKm, minPerHour, maxPerHour },
       avgDriverRating: Number(avgRating.toFixed(1)),
-      note: estimatedRange
+      note: distanceMethod === 'route'
         ? 'Estimativa baseada na distância real da rota e nas taxas dos motoristas disponíveis.'
-        : 'Estimativa baseada nas taxas dos motoristas. Configure OPENROUTE_API_KEY para cálculo por distância.',
+        : distanceMethod === 'estimate'
+          ? 'Distância estimada (rota aproximada). O valor final é proposto pelo motorista.'
+          : 'Estimativa baseada nas taxas dos motoristas. Configure OPENROUTE_API_KEY para cálculo por distância.',
     }
   }
 
