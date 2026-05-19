@@ -53,4 +53,14 @@ export class DriverController {
     const data = await service.deleteAvailability(req.user!.id, String(req.params.id))
     res.json(data)
   }
+
+  async getFavorites(req: AuthRequest, res: Response) {
+    const data = await service.getFavorites(req.user!.id)
+    res.json(data)
+  }
+
+  async toggleFavorite(req: AuthRequest, res: Response) {
+    const data = await service.toggleFavorite(req.user!.id, String(req.params.id))
+    res.json(data)
+  }
 }

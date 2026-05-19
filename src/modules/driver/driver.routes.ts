@@ -27,6 +27,10 @@ router.post('/me/availability', isAuthenticated, isDriver, validate(availability
 router.put('/me/availability/:id', isAuthenticated, isDriver, wrap(controller.updateAvailability))
 router.delete('/me/availability/:id', isAuthenticated, isDriver, wrap(controller.deleteAvailability))
 
+// Favorite routes (authenticated)
+router.get('/favorites', isAuthenticated, wrap(controller.getFavorites))
+router.post('/:id/favorite', isAuthenticated, wrap(controller.toggleFavorite))
+
 // Public routes — /:id must come last to avoid capturing static segments
 router.get('/', wrap(controller.listDrivers))
 router.get('/:id', wrap(controller.getDriver))

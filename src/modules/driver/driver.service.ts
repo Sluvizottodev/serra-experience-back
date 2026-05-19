@@ -26,35 +26,60 @@ const driverSelect = {
 }
 
 export class DriverService {
-  async listDrivers(query: { date?: string; capacity?: string; page?: string; limit?: string }) {
+  async listDrivers(query: { date?: string; capacity?: string; search?: string; available?: string; ids?: string; page?: string; limit?: string }) {
     const page = Number(query.page) || 1
     const limit = Number(query.limit) || 10
     const { take, skip } = getPaginationParams(page, limit)
 
-    const where: Record<string, unknown> = { isApproved: true, isAvailable: true }
+    const where: Record<string, unknown> = { isApproved: true }
+
+    if (query.ids) {
+      where.id = { in: query.ids.split(',').filter(Boolean) }
+    }
+
+    if (query.available === 'true') {
+      where.isAvailable = true
+    }
+
+    const andConditions: Record<string, unknown>[] = []
+
+    if (query.search) {
+      andConditions.push({
+        OR: [
+          { user: { name: { contains: query.search, mode: 'insensitive' } } },
+          { vehicleMake: { contains: query.search, mode: 'insensitive' } },
+          { vehicleModel: { contains: query.search, mode: 'insensitive' } },
+        ],
+      })
+    }
 
     if (query.capacity) {
       where.vehicleCapacity = { gte: Number(query.capacity) }
     }
+
     if (query.date) {
       const day = new Date(query.date)
       day.setUTCHours(0, 0, 0, 0)
       const nextDay = new Date(day)
       nextDay.setUTCDate(nextDay.getUTCDate() + 1)
 
-      where.OR = [
-        {
-          availabilities: {
-            some: {
-              date: { gte: day, lt: nextDay },
-              isAvailable: true,
+      andConditions.push({
+        OR: [
+          {
+            availabilities: {
+              some: {
+                date: { gte: day, lt: nextDay },
+                isAvailable: true,
+              },
             },
           },
-        },
-        {
-          availabilities: { none: {} },
-        },
-      ]
+          { availabilities: { none: {} } },
+        ],
+      })
+    }
+
+    if (andConditions.length > 0) {
+      where.AND = andConditions
     }
 
     const [drivers, total] = await Promise.all([
@@ -177,5 +202,33 @@ export class DriverService {
 
     await prisma.availability.delete({ where: { id: availabilityId } })
     return { message: 'Disponibilidade removida' }
+  }
+
+  async getFavorites(userId: string) {
+    const rows = await prisma.favoriteDriver.findMany({
+      where: { userId },
+      select: {
+        driverProfile: { select: driverSelect },
+      },
+      orderBy: { createdAt: 'desc' },
+    })
+    return rows.map(r => r.driverProfile)
+  }
+
+  async toggleFavorite(userId: string, driverProfileId: string) {
+    const driver = await prisma.driverProfile.findUnique({ where: { id: driverProfileId } })
+    if (!driver) throw new AppError(404, 'Motorista não encontrado')
+
+    const existing = await prisma.favoriteDriver.findUnique({
+      where: { userId_driverProfileId: { userId, driverProfileId } },
+    })
+
+    if (existing) {
+      await prisma.favoriteDriver.delete({ where: { id: existing.id } })
+      return { favorited: false }
+    }
+
+    await prisma.favoriteDriver.create({ data: { userId, driverProfileId } })
+    return { favorited: true }
   }
 }

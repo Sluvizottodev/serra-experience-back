@@ -85,6 +85,7 @@ model User {
   quotesAsPassenger Quote[]        @relation("PassengerQuotes")
   tripsAsPassenger  Trip[]         @relation("PassengerTrips")
   reviews           Review[]
+  favoriteDrivers   FavoriteDriver[]
 
   @@map("users")
 }
@@ -116,8 +117,21 @@ model DriverProfile {
   trips          Trip[]
   quotes         Quote[]
   reviews        Review[]
+  favoritedBy     FavoriteDriver[]
 
   @@map("driver_profiles")
+}
+
+model FavoriteDriver {
+  id              String        @id @default(uuid())
+  userId          String
+  user            User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  driverProfileId String
+  driverProfile   DriverProfile @relation(fields: [driverProfileId], references: [id], onDelete: Cascade)
+  createdAt       DateTime      @default(now())
+
+  @@unique([userId, driverProfileId])
+  @@map("favorite_drivers")
 }
 
 model Availability {
