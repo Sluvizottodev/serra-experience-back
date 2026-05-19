@@ -32,8 +32,29 @@ export class DriverService {
     const { take, skip } = getPaginationParams(page, limit)
 
     const where: Record<string, unknown> = { isApproved: true, isAvailable: true }
+
     if (query.capacity) {
       where.vehicleCapacity = { gte: Number(query.capacity) }
+    }
+    if (query.date) {
+      const day = new Date(query.date)
+      day.setUTCHours(0, 0, 0, 0)
+      const nextDay = new Date(day)
+      nextDay.setUTCDate(nextDay.getUTCDate() + 1)
+
+      where.OR = [
+        {
+          availability: {
+            some: {
+              date: { gte: day, lt: nextDay },
+              isAvailable: true,
+            },
+          },
+        },
+        {
+          availability: { none: {} },
+        },
+      ]
     }
 
     const [drivers, total] = await Promise.all([
