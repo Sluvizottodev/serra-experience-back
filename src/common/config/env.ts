@@ -18,6 +18,7 @@ const envSchema = z.object({
   PICPAY_TOKEN: z.string().optional(),
   PICPAY_SELLER_TOKEN: z.string().optional(),
   PICPAY_API_URL: z.string().default('https://appws.picpay.com/ecommerce/public/v2'),
+  OPENROUTE_API_KEY: z.string().optional(),
 })
 
 const parsed = envSchema.safeParse(process.env)

@@ -1,11 +1,22 @@
 import { z } from 'zod'
 
+// Endereço humano: rua, número, bairro, cidade — sem coordenadas
+// Regex bloqueia strings que parecem lat/lng puras (ex: "-23.5505, -46.6333")
+const LATLNG_RE = /^-?\d{1,3}\.\d+\s*,\s*-?\d{1,3}\.\d+$/
+
+const addressField = (label: string) =>
+  z.string()
+    .min(10, `${label} deve ter pelo menos 10 caracteres`)
+    .max(200, `${label} não pode exceder 200 caracteres`)
+    .refine(v => !LATLNG_RE.test(v.trim()), {
+      message: `${label} deve ser um endereço por extenso, não coordenadas`,
+    })
+    .transform(v => v.trim())
+
 export const createQuoteSchema = z.object({
   driverProfileId: z.string().uuid().optional(),
-  originAddress: z.string()
-    .min(5, 'Endereço de origem deve ter pelo menos 5 caracteres'),
-  destinationAddress: z.string()
-    .min(5, 'Endereço de destino deve ter pelo menos 5 caracteres'),
+  originAddress: addressField('Endereço de origem'),
+  destinationAddress: addressField('Endereço de destino'),
   scheduledAt: z.string()
     .datetime('Data e hora inválida')
     .refine(d => new Date(d) > new Date(), 'A data da viagem deve ser no futuro'),
@@ -21,17 +32,16 @@ export const createQuoteSchema = z.object({
 
 export const respondQuoteSchema = z.object({
   responsePrice: z.number()
-    .positive('Preço deve ser positivo'),
+    .positive('Preço deve ser positivo')
+    .max(99_999.99, 'Valor fora do limite permitido'),
   responseNote: z.string()
     .max(200, 'Nota não pode exceder 200 caracteres')
     .optional(),
 })
 
 export const previewQuoteSchema = z.object({
-  originAddress: z.string()
-    .min(5, 'Endereço de origem deve ter pelo menos 5 caracteres'),
-  destinationAddress: z.string()
-    .min(5, 'Endereço de destino deve ter pelo menos 5 caracteres'),
+  originAddress: addressField('Endereço de origem'),
+  destinationAddress: addressField('Endereço de destino'),
   scheduledAt: z.string()
     .datetime('Data e hora inválida')
     .refine(d => new Date(d) > new Date(), 'A data da viagem deve ser no futuro'),

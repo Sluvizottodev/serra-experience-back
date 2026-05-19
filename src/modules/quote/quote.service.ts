@@ -1,6 +1,7 @@
 import { prisma } from '../../common/config/prisma'
 import { AppError } from '../../common/middlewares/error.middleware'
 import { getPaginationParams, buildPaginationMeta } from '../../common/utils/pagination'
+import { getRouteDistance } from '../../common/utils/geo'
 import type { CreateQuoteInput, RespondQuoteInput, PreviewQuoteInput } from './quote.schema'
 
 const QUOTE_EXPIRY_HOURS = 48
@@ -153,57 +154,72 @@ export class QuoteService {
     return { quote: updatedQuote, trip }
   }
 
-  async previewQuote(_data: PreviewQuoteInput) {
+  async previewQuote(data: PreviewQuoteInput) {
     const settings = await prisma.settings.findUnique({ where: { id: 1 } })
     const commissionRate = Number(settings?.commissionRate || 0.1)
 
-    const where: Record<string, unknown> = { isApproved: true, isAvailable: true }
-
     const drivers = await prisma.driverProfile.findMany({
-      where,
+      where: { isApproved: true, isAvailable: true },
       select: {
         baseRatePerKm: true,
         baseRatePerHour: true,
         vehicleCapacity: true,
-        vehicleMake: true,
-        vehicleModel: true,
         rating: true,
-        totalTrips: true,
       },
     })
 
     if (drivers.length === 0) {
       return {
         availableDrivers: 0,
+        distanceKm: null,
+        durationMin: null,
         estimatedRange: null,
         commissionRate,
         note: 'Nenhum motorista disponível no momento',
       }
     }
 
+    // Tenta calcular distância real via OpenRouteService
+    let distanceKm: number | null = null
+    let durationMin: number | null = null
+    try {
+      const route = await getRouteDistance(data.originAddress, data.destinationAddress)
+      distanceKm = route.distanceKm
+      durationMin = route.durationMin
+    } catch {
+      // API não configurada ou falhou — preview sem distância
+    }
+
     const rates = drivers.map(d => ({
-      perKm: Number(d.baseRatePerKm),
+      perKm:   Number(d.baseRatePerKm),
       perHour: Number(d.baseRatePerHour),
     }))
 
-    const minPerKm  = Math.min(...rates.map(r => r.perKm))
-    const maxPerKm  = Math.max(...rates.map(r => r.perKm))
+    const minPerKm   = Math.min(...rates.map(r => r.perKm))
+    const maxPerKm   = Math.max(...rates.map(r => r.perKm))
     const minPerHour = Math.min(...rates.map(r => r.perHour))
     const maxPerHour = Math.max(...rates.map(r => r.perHour))
+    const avgRating  = drivers.reduce((s, d) => s + Number(d.rating), 0) / drivers.length
 
-    const avgRating = drivers.reduce((s, d) => s + Number(d.rating), 0) / drivers.length
+    // Se temos distância, calcula faixa de preço estimada com comissão
+    const estimatedRange = distanceKm
+      ? {
+          minTotal: Number(((minPerKm * distanceKm) * (1 + commissionRate)).toFixed(2)),
+          maxTotal: Number(((maxPerKm * distanceKm) * (1 + commissionRate)).toFixed(2)),
+        }
+      : null
 
     return {
       availableDrivers: drivers.length,
+      distanceKm,
+      durationMin,
+      estimatedRange,
       commissionRate,
-      rates: {
-        minPerKm,
-        maxPerKm,
-        minPerHour,
-        maxPerHour,
-      },
+      rates: { minPerKm, maxPerKm, minPerHour, maxPerHour },
       avgDriverRating: Number(avgRating.toFixed(1)),
-      note: 'Estimativa baseada nas taxas dos motoristas disponíveis. O valor final é proposto pelo motorista escolhido.',
+      note: estimatedRange
+        ? 'Estimativa baseada na distância real da rota e nas taxas dos motoristas disponíveis.'
+        : 'Estimativa baseada nas taxas dos motoristas. Configure OPENROUTE_API_KEY para cálculo por distância.',
     }
   }
 
