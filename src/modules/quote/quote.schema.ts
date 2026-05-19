@@ -27,5 +27,19 @@ export const respondQuoteSchema = z.object({
     .optional(),
 })
 
+export const previewQuoteSchema = z.object({
+  originAddress: z.string()
+    .min(5, 'Endereço de origem deve ter pelo menos 5 caracteres'),
+  destinationAddress: z.string()
+    .min(5, 'Endereço de destino deve ter pelo menos 5 caracteres'),
+  scheduledAt: z.string()
+    .datetime('Data e hora inválida')
+    .refine(d => new Date(d) > new Date(), 'A data da viagem deve ser no futuro'),
+  vehicleType: z.enum(['sedan', 'suv', 'van', 'executivo'], {
+    errorMap: () => ({ message: 'Tipo de veículo inválido' }),
+  }).optional(),
+})
+
 export type CreateQuoteInput = z.infer<typeof createQuoteSchema>
 export type RespondQuoteInput = z.infer<typeof respondQuoteSchema>
+export type PreviewQuoteInput = z.infer<typeof previewQuoteSchema>

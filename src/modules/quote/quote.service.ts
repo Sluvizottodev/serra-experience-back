@@ -1,7 +1,7 @@
 import { prisma } from '../../common/config/prisma'
 import { AppError } from '../../common/middlewares/error.middleware'
 import { getPaginationParams, buildPaginationMeta } from '../../common/utils/pagination'
-import type { CreateQuoteInput, RespondQuoteInput } from './quote.schema'
+import type { CreateQuoteInput, RespondQuoteInput, PreviewQuoteInput } from './quote.schema'
 
 const QUOTE_EXPIRY_HOURS = 48
 
@@ -151,6 +151,60 @@ export class QuoteService {
     ])
 
     return { quote: updatedQuote, trip }
+  }
+
+  async previewQuote(_data: PreviewQuoteInput) {
+    const settings = await prisma.settings.findUnique({ where: { id: 1 } })
+    const commissionRate = Number(settings?.commissionRate || 0.1)
+
+    const where: Record<string, unknown> = { isApproved: true, isAvailable: true }
+
+    const drivers = await prisma.driverProfile.findMany({
+      where,
+      select: {
+        baseRatePerKm: true,
+        baseRatePerHour: true,
+        vehicleCapacity: true,
+        vehicleMake: true,
+        vehicleModel: true,
+        rating: true,
+        totalTrips: true,
+      },
+    })
+
+    if (drivers.length === 0) {
+      return {
+        availableDrivers: 0,
+        estimatedRange: null,
+        commissionRate,
+        note: 'Nenhum motorista disponível no momento',
+      }
+    }
+
+    const rates = drivers.map(d => ({
+      perKm: Number(d.baseRatePerKm),
+      perHour: Number(d.baseRatePerHour),
+    }))
+
+    const minPerKm  = Math.min(...rates.map(r => r.perKm))
+    const maxPerKm  = Math.max(...rates.map(r => r.perKm))
+    const minPerHour = Math.min(...rates.map(r => r.perHour))
+    const maxPerHour = Math.max(...rates.map(r => r.perHour))
+
+    const avgRating = drivers.reduce((s, d) => s + Number(d.rating), 0) / drivers.length
+
+    return {
+      availableDrivers: drivers.length,
+      commissionRate,
+      rates: {
+        minPerKm,
+        maxPerKm,
+        minPerHour,
+        maxPerHour,
+      },
+      avgDriverRating: Number(avgRating.toFixed(1)),
+      note: 'Estimativa baseada nas taxas dos motoristas disponíveis. O valor final é proposto pelo motorista escolhido.',
+    }
   }
 
   async rejectQuote(quoteId: string, passengerId: string) {

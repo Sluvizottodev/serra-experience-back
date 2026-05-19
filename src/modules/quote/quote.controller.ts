@@ -1,10 +1,15 @@
-import { Response } from 'express'
+import { Request, Response } from 'express'
 import { QuoteService } from './quote.service'
 import { AuthRequest } from '../../common/types'
 
 const service = new QuoteService()
 
 export class QuoteController {
+  async previewQuote(req: Request, res: Response) {
+    const data = await service.previewQuote(req.body)
+    res.json(data)
+  }
+
   async createQuote(req: AuthRequest, res: Response) {
     const data = await service.createQuote(req.user!.id, req.body)
     res.status(201).json(data)

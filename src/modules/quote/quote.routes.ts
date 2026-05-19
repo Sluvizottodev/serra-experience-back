@@ -2,7 +2,7 @@ import { Router } from 'express'
 import { QuoteController } from './quote.controller'
 import { isAuthenticated, isDriver, isPassenger } from '../../common/middlewares/auth.middleware'
 import { validate } from '../../common/middlewares/validate.middleware'
-import { createQuoteSchema, respondQuoteSchema } from './quote.schema'
+import { createQuoteSchema, respondQuoteSchema, previewQuoteSchema } from './quote.schema'
 
 const router = Router()
 const controller = new QuoteController()
@@ -12,6 +12,9 @@ const wrap = (fn: Function) => (req: any, res: any, next: any) =>
     const status = err.statusCode ?? 400
     res.status(status).json({ error: err.message })
   })
+
+// Rota pública — deve vir ANTES do middleware isAuthenticated
+router.post('/preview', validate(previewQuoteSchema), wrap(controller.previewQuote))
 
 router.use(isAuthenticated)
 
