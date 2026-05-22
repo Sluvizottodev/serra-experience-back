@@ -72,6 +72,7 @@ export class AdminService {
     siteName?: string
     contactEmail?: string
     phone?: string
+    whatsapp?: string
     address?: string
     commissionRate?: number
     timezone?: string

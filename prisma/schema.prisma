@@ -311,6 +311,7 @@ model Settings {
   siteName       String   @default("Viagem com Motorista")
   contactEmail   String   @default("contato@viagem-motorista.com")
   phone          String?
+  whatsapp       String?
   address        String?
   commissionRate Decimal  @default(0.10) @db.Decimal(5, 4)
   timezone       String   @default("America/Sao_Paulo")

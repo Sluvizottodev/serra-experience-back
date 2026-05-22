@@ -14,6 +14,9 @@ import { paymentRoutes } from './modules/payment/payment.routes'
 import { adminRoutes } from './modules/admin/admin.routes'
 import { reportRoutes } from './modules/report/report.routes'
 import { messageRoutes } from './modules/message/message.routes'
+import { AdminService } from './modules/admin/admin.service'
+
+const adminService = new AdminService()
 
 const app = express()
 
@@ -41,6 +44,16 @@ app.use(globalLimiter)
 
 app.get('/health', (_req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() })
+})
+
+// Rota pública: expõe apenas campos seguros das configurações (whatsapp, siteName)
+app.get('/api/settings', async (_req, res) => {
+  try {
+    const s = await adminService.getSettings()
+    res.json({ whatsapp: s.whatsapp ?? null, siteName: s.siteName })
+  } catch {
+    res.status(500).json({ error: 'Erro ao buscar configurações' })
+  }
 })
 
 app.use('/api/auth', authRoutes)
