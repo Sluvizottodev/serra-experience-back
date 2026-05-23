@@ -1,5 +1,6 @@
 import { prisma } from '../../common/config/prisma'
 import { getPaginationParams, buildPaginationMeta } from '../../common/utils/pagination'
+import { PaymentLogStatus } from '@prisma/client'
 
 export class AdminService {
   async listUsers(page = 1, limit = 20) {
@@ -93,12 +94,54 @@ export class AdminService {
     return { logs, meta: buildPaginationMeta(total, page, take) }
   }
 
+  async listReviews(page = 1, limit = 20, visible?: boolean) {
+    const { take, skip } = getPaginationParams(page, limit)
+    const where = visible !== undefined ? { isVisible: visible } : {}
+    const [reviews, total] = await Promise.all([
+      prisma.review.findMany({
+        where,
+        include: {
+          author: { select: { id: true, name: true, email: true } },
+          driverProfile: { select: { id: true, user: { select: { name: true } } } },
+        },
+        orderBy: { createdAt: 'desc' },
+        take,
+        skip,
+      }),
+      prisma.review.count({ where }),
+    ])
+    return { reviews, meta: buildPaginationMeta(total, page, take) }
+  }
+
+  async updateReviewVisibility(reviewId: string, isVisible: boolean) {
+    return prisma.review.update({
+      where: { id: reviewId },
+      data: { isVisible },
+      select: { id: true, isVisible: true },
+    })
+  }
+
+  async updateReviewComment(reviewId: string, comment: string | null) {
+    if (comment !== null && comment.length > 300) {
+      throw new Error('Comentário não pode ultrapassar 300 caracteres')
+    }
+    return prisma.review.update({
+      where: { id: reviewId },
+      data: { comment: comment ?? null },
+      select: { id: true, comment: true },
+    })
+  }
+
+  async deleteReview(reviewId: string) {
+    return prisma.review.delete({ where: { id: reviewId } })
+  }
+
   async getDashboardStats() {
     const [totalUsers, totalDrivers, totalTrips, totalRevenue] = await Promise.all([
       prisma.user.count(),
       prisma.driverProfile.count(),
       prisma.trip.count(),
-      prisma.payment.aggregate({ where: { status: 'PAID' }, _sum: { amount: true } }),
+      prisma.payment.aggregate({ where: { status: PaymentLogStatus.PAID }, _sum: { amount: true } }),
     ])
 
     const tripsByStatus = await prisma.trip.groupBy({

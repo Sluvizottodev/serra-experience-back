@@ -22,4 +22,9 @@ router.get('/settings', wrap(controller.getSettings))
 router.put('/settings', wrap(controller.updateSettings))
 router.get('/payment-logs', wrap(controller.getPaymentLogs))
 
+router.get('/reviews', wrap(controller.listReviews))
+router.patch('/reviews/:id/visibility', wrap(controller.updateReviewVisibility))
+router.patch('/reviews/:id/comment', wrap(controller.updateReviewComment))
+router.delete('/reviews/:id', wrap(controller.deleteReview))
+
 export { router as adminRoutes }

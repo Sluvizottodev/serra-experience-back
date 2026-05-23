@@ -213,7 +213,8 @@ model Review {
   driverProfileId String
   driverProfile   DriverProfile @relation(fields: [driverProfileId], references: [id])
   rating          Int
-  comment         String?
+  comment         String?       @db.VarChar(300)
+  isVisible       Boolean       @default(true)
   createdAt       DateTime      @default(now())
 
   @@map("reviews")
