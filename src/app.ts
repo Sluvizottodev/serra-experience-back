@@ -15,6 +15,7 @@ import { adminRoutes } from './modules/admin/admin.routes'
 import { reportRoutes } from './modules/report/report.routes'
 import { messageRoutes } from './modules/message/message.routes'
 import { AdminService } from './modules/admin/admin.service'
+import { prisma } from './common/config/prisma'
 
 const adminService = new AdminService()
 
@@ -53,6 +54,27 @@ app.get('/api/settings', async (_req, res) => {
     res.json({ whatsapp: s.whatsapp ?? null, siteName: s.siteName })
   } catch {
     res.status(500).json({ error: 'Erro ao buscar configurações' })
+  }
+})
+
+// Rota pública: reviews visíveis com comentário para exibir na home
+app.get('/api/reviews/public', async (_req, res) => {
+  try {
+    const reviews = await prisma.review.findMany({
+      where: { isVisible: true, comment: { not: null } },
+      select: {
+        id: true,
+        rating: true,
+        comment: true,
+        createdAt: true,
+        author: { select: { name: true } },
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 20,
+    })
+    res.json(reviews)
+  } catch {
+    res.status(500).json({ error: 'Erro ao buscar avaliações' })
   }
 })
 
