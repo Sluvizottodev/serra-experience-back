@@ -14,6 +14,7 @@ import { paymentRoutes } from './modules/payment/payment.routes'
 import { adminRoutes } from './modules/admin/admin.routes'
 import { reportRoutes } from './modules/report/report.routes'
 import { messageRoutes } from './modules/message/message.routes'
+import { eventRoutes } from './modules/event/event.routes'
 import { AdminService } from './modules/admin/admin.service'
 import { prisma } from './common/config/prisma'
 
@@ -56,6 +57,8 @@ app.get('/settings', async (_req, res) => {
     res.status(500).json({ error: 'Erro ao buscar configurações' })
   }
 })
+
+app.use('/api/events', eventRoutes)
 
 app.get('/reviews/public', async (_req, res) => {
   try {

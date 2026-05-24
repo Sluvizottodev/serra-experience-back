@@ -320,3 +320,21 @@ model Settings {
 
   @@map("settings")
 }
+
+model Event {
+  id            String   @id @default(uuid())
+  title         String
+  description   String?
+  date          String?
+  location      String?
+  imageUrl      String?
+  imagePublicId String?
+  link          String?
+  featured      Boolean  @default(false)
+  active        Boolean  @default(true)
+  order         Int      @default(0)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@map("events")
+}
