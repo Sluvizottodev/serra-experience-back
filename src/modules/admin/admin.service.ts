@@ -27,6 +27,11 @@ export class AdminService {
   }
 
   async verifyUserDocument(userId: string, action: 'APPROVED' | 'REJECTED') {
+    const user = await prisma.user.findUnique({ where: { id: userId }, select: { id: true, idStatus: true } })
+    if (!user) throw Object.assign(new Error('Usuário não encontrado'), { statusCode: 404 })
+    if (user.idStatus === action) {
+      return prisma.user.findUnique({ where: { id: userId }, select: { id: true, name: true, email: true, idStatus: true } })
+    }
     return prisma.user.update({
       where: { id: userId },
       data: { idStatus: action },
@@ -54,6 +59,14 @@ export class AdminService {
   }
 
   async approveDriver(driverProfileId: string, approved: boolean) {
+    const driver = await prisma.driverProfile.findUnique({ where: { id: driverProfileId }, select: { id: true, isApproved: true } })
+    if (!driver) throw Object.assign(new Error('Motorista não encontrado'), { statusCode: 404 })
+    if (driver.isApproved === approved) {
+      return prisma.driverProfile.findUnique({
+        where: { id: driverProfileId },
+        select: { id: true, isApproved: true, user: { select: { name: true, email: true } } },
+      })
+    }
     return prisma.driverProfile.update({
       where: { id: driverProfileId },
       data: { isApproved: approved },
@@ -122,9 +135,6 @@ export class AdminService {
   }
 
   async updateReviewComment(reviewId: string, comment: string | null) {
-    if (comment !== null && comment.length > 300) {
-      throw new Error('Comentário não pode ultrapassar 300 caracteres')
-    }
     return prisma.review.update({
       where: { id: reviewId },
       data: { comment: comment ?? null },
@@ -132,8 +142,39 @@ export class AdminService {
     })
   }
 
-  async deleteReview(reviewId: string) {
-    return prisma.review.delete({ where: { id: reviewId } })
+  async deleteReview(reviewId: string): Promise<boolean> {
+    const exists = await prisma.review.findUnique({ where: { id: reviewId }, select: { id: true } })
+    if (!exists) return false
+    await prisma.review.delete({ where: { id: reviewId } })
+    return true
+  }
+
+  async listAdminTrips(page = 1, limit = 10, status?: string, search?: string) {
+    const { take, skip } = getPaginationParams(page, limit)
+    const where: Record<string, unknown> = {}
+    if (status) where.status = status
+    if (search) {
+      where.OR = [
+        { originAddress: { contains: search, mode: 'insensitive' } },
+        { destinationAddress: { contains: search, mode: 'insensitive' } },
+        { passenger: { name: { contains: search, mode: 'insensitive' } } },
+        { driverProfile: { user: { name: { contains: search, mode: 'insensitive' } } } },
+      ]
+    }
+    const [trips, total] = await Promise.all([
+      prisma.trip.findMany({
+        where,
+        include: {
+          passenger: { select: { name: true } },
+          driverProfile: { include: { user: { select: { name: true } } } },
+        },
+        orderBy: { createdAt: 'desc' },
+        take,
+        skip,
+      }),
+      prisma.trip.count({ where }),
+    ])
+    return { trips, total, meta: buildPaginationMeta(total, page, take) }
   }
 
   async getDashboardStats() {

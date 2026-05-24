@@ -19,6 +19,15 @@ export class EventService {
     active?: boolean
     order?: number
   }) {
+    const duplicate = await prisma.event.findFirst({
+      where: {
+        title: { equals: data.title, mode: 'insensitive' },
+        date: data.date ?? null,
+        location: data.location ?? null,
+      },
+      select: { id: true },
+    })
+    if (duplicate) throw Object.assign(new Error('Já existe um evento com este título, data e local'), { statusCode: 409 })
     return prisma.event.create({ data })
   }
 
@@ -35,12 +44,15 @@ export class EventService {
       order?: number
     },
   ) {
+    const exists = await prisma.event.findUnique({ where: { id }, select: { id: true } })
+    if (!exists) throw Object.assign(new Error('Evento não encontrado'), { statusCode: 404 })
     return prisma.event.update({ where: { id }, data })
   }
 
   async deleteEvent(id: string) {
     const event = await prisma.event.findUnique({ where: { id } })
-    if (event?.imagePublicId) {
+    if (!event) throw Object.assign(new Error('Evento não encontrado'), { statusCode: 404 })
+    if (event.imagePublicId) {
       await cloudinary.uploader.destroy(event.imagePublicId).catch(() => null)
     }
     return prisma.event.delete({ where: { id } })

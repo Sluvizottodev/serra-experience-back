@@ -21,6 +21,7 @@ router.put('/drivers/:id/approve', wrap(controller.approveDriver))
 router.get('/settings', wrap(controller.getSettings))
 router.put('/settings', wrap(controller.updateSettings))
 router.get('/payment-logs', wrap(controller.getPaymentLogs))
+router.get('/trips', wrap(controller.listTrips))
 
 router.get('/reviews', wrap(controller.listReviews))
 router.patch('/reviews/:id/visibility', wrap(controller.updateReviewVisibility))

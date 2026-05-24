@@ -27,7 +27,11 @@ export class AdminController {
 
   async approveDriver(req: Request, res: Response) {
     const { approved } = req.body
-    const data = await service.approveDriver(String(req.params.id), Boolean(approved))
+    if (typeof approved !== 'boolean') {
+      res.status(400).json({ error: 'approved deve ser booleano' })
+      return
+    }
+    const data = await service.approveDriver(String(req.params.id), approved)
     res.json(data)
   }
 
@@ -73,7 +77,7 @@ export class AdminController {
       res.status(400).json({ error: 'comment deve ser string ou null' })
       return
     }
-    if (typeof comment === 'string' && comment.length > 300) {
+    if (typeof comment === 'string' && comment.trim().length > 300) {
       res.status(400).json({ error: 'Comentário não pode ultrapassar 300 caracteres' })
       return
     }
@@ -82,7 +86,19 @@ export class AdminController {
   }
 
   async deleteReview(req: Request, res: Response) {
-    await service.deleteReview(String(req.params.id))
+    const deleted = await service.deleteReview(String(req.params.id))
+    if (!deleted) { res.status(404).json({ error: 'Avaliação não encontrada' }); return }
     res.status(204).send()
+  }
+
+  async listTrips(req: Request, res: Response) {
+    const { page, limit, status, search } = req.query as Record<string, string>
+    const data = await service.listAdminTrips(
+      Number(page) || 1,
+      Number(limit) || 10,
+      status || undefined,
+      search || undefined,
+    )
+    res.json(data)
   }
 }

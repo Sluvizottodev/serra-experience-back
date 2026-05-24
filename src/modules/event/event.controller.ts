@@ -58,6 +58,16 @@ export class EventController {
       res.status(400).json({ error: 'Arquivo não enviado' })
       return
     }
+    const MAX_BYTES = 5 * 1024 * 1024
+    if (req.file.size > MAX_BYTES) {
+      res.status(400).json({ error: 'Imagem deve ter no máximo 5 MB' })
+      return
+    }
+    const allowed = ['image/jpeg', 'image/png', 'image/webp']
+    if (!allowed.includes(req.file.mimetype)) {
+      res.status(400).json({ error: 'Formato inválido. Use JPG, PNG ou WEBP' })
+      return
+    }
     const event = await service.uploadImage(
       String(req.params.id),
       req.file.buffer,

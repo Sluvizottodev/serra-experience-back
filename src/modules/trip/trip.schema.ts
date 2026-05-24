@@ -5,12 +5,15 @@ export const updateTripStatusSchema = z.object({
 })
 
 export const cancelTripSchema = z.object({
-  cancelReason: z.string().min(5),
+  cancelReason: z
+    .string()
+    .min(5, 'Motivo deve ter pelo menos 5 caracteres')
+    .max(500, 'Motivo não pode exceder 500 caracteres'),
 })
 
 export const reviewSchema = z.object({
-  rating: z.number().int().min(1).max(5),
-  comment: z.string().optional(),
+  rating: z.number().int().min(1, 'Mínimo 1 estrela').max(5, 'Máximo 5 estrelas'),
+  comment: z.string().max(500, 'Comentário não pode exceder 500 caracteres').optional(),
 })
 
 export type UpdateTripStatusInput = z.infer<typeof updateTripStatusSchema>
