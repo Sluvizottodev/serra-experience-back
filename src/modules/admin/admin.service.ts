@@ -169,6 +169,13 @@ export class AdminService {
     return true
   }
 
+  async deleteUser(userId: string): Promise<boolean> {
+    const user = await prisma.user.findUnique({ where: { id: userId }, select: { id: true } })
+    if (!user) return false
+    await prisma.user.delete({ where: { id: userId } })
+    return true
+  }
+
   async listAdminTrips(page = 1, limit = 10, status?: string, search?: string) {
     const { take, skip } = getPaginationParams(page, limit)
     const where: Record<string, unknown> = {}

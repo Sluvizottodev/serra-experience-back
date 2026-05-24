@@ -106,6 +106,12 @@ export class AdminController {
     res.status(204).send()
   }
 
+  async deleteUser(req: Request, res: Response) {
+    const deleted = await service.deleteUser(String(req.params.id))
+    if (!deleted) { res.status(404).json({ error: 'Usuário não encontrado' }); return }
+    res.status(204).send()
+  }
+
   async listTrips(req: Request, res: Response) {
     const { page, limit, status, search } = req.query as Record<string, string>
     const data = await service.listAdminTrips(

@@ -24,6 +24,8 @@ router.put('/settings', wrap(controller.updateSettings))
 router.get('/payment-logs', wrap(controller.getPaymentLogs))
 router.get('/trips', wrap(controller.listTrips))
 
+router.delete('/users/:id', wrap(controller.deleteUser))
+
 router.get('/reviews', wrap(controller.listReviews))
 router.patch('/reviews/:id/visibility', wrap(controller.updateReviewVisibility))
 router.patch('/reviews/:id/comment', wrap(controller.updateReviewComment))
