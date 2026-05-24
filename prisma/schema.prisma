@@ -151,7 +151,7 @@ model Availability {
 model Trip {
   id                       String        @id @default(uuid())
   passengerId              String
-  passenger                User          @relation("PassengerTrips", fields: [passengerId], references: [id])
+  passenger                User          @relation("PassengerTrips", fields: [passengerId], references: [id], onDelete: Cascade)
   driverProfileId          String
   driverProfile            DriverProfile @relation(fields: [driverProfileId], references: [id])
   quoteId                  String?       @unique
@@ -183,7 +183,7 @@ model Trip {
 model Quote {
   id                 String         @id @default(uuid())
   passengerId        String
-  passenger          User           @relation("PassengerQuotes", fields: [passengerId], references: [id])
+  passenger          User           @relation("PassengerQuotes", fields: [passengerId], references: [id], onDelete: Cascade)
   driverProfileId    String?
   driverProfile      DriverProfile? @relation(fields: [driverProfileId], references: [id])
   originAddress      String
@@ -207,9 +207,9 @@ model Quote {
 model Review {
   id              String        @id @default(uuid())
   tripId          String        @unique
-  trip            Trip          @relation(fields: [tripId], references: [id])
+  trip            Trip          @relation(fields: [tripId], references: [id], onDelete: Cascade)
   authorId        String
-  author          User          @relation(fields: [authorId], references: [id])
+  author          User          @relation(fields: [authorId], references: [id], onDelete: Cascade)
   driverProfileId String
   driverProfile   DriverProfile @relation(fields: [driverProfileId], references: [id])
   rating          Int
@@ -224,7 +224,7 @@ model Message {
   id        String   @id @default(uuid())
   content   String
   senderId  String
-  sender    User     @relation("SentMessages", fields: [senderId], references: [id])
+  sender    User     @relation("SentMessages", fields: [senderId], references: [id], onDelete: Cascade)
   quoteId   String
   quote     Quote    @relation(fields: [quoteId], references: [id], onDelete: Cascade)
   createdAt DateTime @default(now())
@@ -235,7 +235,7 @@ model Message {
 model Payment {
   id                    String           @id @default(uuid())
   tripId                String           @unique
-  trip                  Trip             @relation(fields: [tripId], references: [id])
+  trip                  Trip             @relation(fields: [tripId], references: [id], onDelete: Cascade)
   provider              PaymentProvider  @default(PICPAY)
   externalTransactionId String           @unique
   amount                Decimal          @db.Decimal(10, 2)
