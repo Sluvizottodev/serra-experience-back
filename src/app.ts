@@ -16,6 +16,7 @@ import { reportRoutes } from './modules/report/report.routes'
 import { messageRoutes } from './modules/message/message.routes'
 import { eventRoutes } from './modules/event/event.routes'
 import { partnerRoutes } from './modules/partner/partner.routes'
+import { testimonialRoutes } from './modules/testimonial/testimonial.routes'
 import { AdminService } from './modules/admin/admin.service'
 import { prisma } from './common/config/prisma'
 
@@ -61,6 +62,7 @@ app.get('/api/settings', async (_req, res) => {
 
 app.use('/api/events', eventRoutes)
 app.use('/api/partners', partnerRoutes)
+app.use('/api/testimonials', testimonialRoutes)
 
 app.get('/api/reviews/public', async (_req, res) => {
   try {

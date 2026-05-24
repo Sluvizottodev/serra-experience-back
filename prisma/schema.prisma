@@ -354,3 +354,17 @@ model Partner {
 
   @@map("partners")
 }
+
+model Testimonial {
+  id        String   @id @default(uuid())
+  name      String
+  role      String?
+  text      String
+  rating    Int?
+  active    Boolean  @default(true)
+  order     Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("testimonials")
+}

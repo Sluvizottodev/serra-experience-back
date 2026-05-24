@@ -4,6 +4,21 @@ import { AdminService } from './admin.service'
 const service = new AdminService()
 
 export class AdminController {
+  async createAdmin(req: Request, res: Response) {
+    const { name, email, password } = req.body
+    if (!name || typeof name !== 'string' || !name.trim()) {
+      res.status(400).json({ error: 'Nome é obrigatório.' }); return
+    }
+    if (!email || typeof email !== 'string' || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      res.status(400).json({ error: 'E-mail inválido.' }); return
+    }
+    if (!password || typeof password !== 'string' || password.length < 8) {
+      res.status(400).json({ error: 'Senha deve ter no mínimo 8 caracteres.' }); return
+    }
+    const data = await service.createAdmin({ name: name.trim(), email: email.trim().toLowerCase(), password })
+    res.status(201).json(data)
+  }
+
   async listUsers(req: Request, res: Response) {
     const data = await service.listUsers(Number(req.query.page) || 1, Number(req.query.limit) || 20)
     res.json(data)

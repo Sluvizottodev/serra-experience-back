@@ -14,6 +14,7 @@ const wrap = (fn: Function) => (req: any, res: any, next: any) =>
 router.use(isAuthenticated, isAdmin)
 
 router.get('/dashboard', wrap(controller.getDashboard))
+router.post('/users/create-admin', wrap(controller.createAdmin))
 router.get('/users', wrap(controller.listUsers))
 router.put('/users/:id/verify-id', wrap(controller.verifyUserDocument))
 router.get('/drivers', wrap(controller.listDrivers))

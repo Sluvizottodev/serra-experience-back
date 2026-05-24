@@ -1,8 +1,28 @@
+import bcrypt from 'bcrypt'
 import { prisma } from '../../common/config/prisma'
 import { getPaginationParams, buildPaginationMeta } from '../../common/utils/pagination'
+import { AppError } from '../../common/middlewares/error.middleware'
 import { PaymentLogStatus } from '@prisma/client'
 
 export class AdminService {
+  async createAdmin(data: { name: string; email: string; password: string }) {
+    const existing = await prisma.user.findUnique({ where: { email: data.email } })
+    if (existing) throw new AppError(409, 'Este e-mail já está em uso.')
+
+    const hashed = await bcrypt.hash(data.password, 12)
+    const user = await prisma.user.create({
+      data: {
+        name: data.name,
+        email: data.email,
+        password: hashed,
+        role: 'ADMIN',
+        isVerified: true,
+      },
+      select: { id: true, name: true, email: true, role: true, createdAt: true },
+    })
+    return user
+  }
+
   async listUsers(page = 1, limit = 20) {
     const { take, skip } = getPaginationParams(page, limit)
     const [users, total] = await Promise.all([
