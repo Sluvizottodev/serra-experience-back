@@ -47,8 +47,8 @@ app.get('/health', (_req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() })
 })
 
-// Rota pública: expõe apenas campos seguros das configurações (whatsapp, siteName)
-app.get('/api/settings', async (_req, res) => {
+// Rotas públicas (sem prefixo /api — o frontend chama com barra inicial que remove o baseURL /api/)
+app.get('/settings', async (_req, res) => {
   try {
     const s = await adminService.getSettings()
     res.json({ whatsapp: s.whatsapp ?? null, siteName: s.siteName })
@@ -57,8 +57,7 @@ app.get('/api/settings', async (_req, res) => {
   }
 })
 
-// Rota pública: reviews visíveis com comentário para exibir na home
-app.get('/api/reviews/public', async (_req, res) => {
+app.get('/reviews/public', async (_req, res) => {
   try {
     const reviews = await prisma.review.findMany({
       where: { isVisible: true, comment: { not: null } },
