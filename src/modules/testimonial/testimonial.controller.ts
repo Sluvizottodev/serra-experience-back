@@ -25,7 +25,7 @@ export async function update(req: Request, res: Response) {
   const parsed = updateTestimonialSchema.safeParse(req.body)
   if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() })
   try {
-    const item = await svc.update(req.params.id, parsed.data)
+    const item = await svc.update(String(req.params.id), parsed.data)
     res.json(item)
   } catch {
     res.status(404).json({ error: 'Depoimento não encontrado' })
@@ -34,7 +34,7 @@ export async function update(req: Request, res: Response) {
 
 export async function remove(req: Request, res: Response) {
   try {
-    await svc.delete(req.params.id)
+    await svc.delete(String(req.params.id))
     res.status(204).end()
   } catch {
     res.status(404).json({ error: 'Depoimento não encontrado' })
