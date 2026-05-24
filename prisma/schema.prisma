@@ -324,6 +324,7 @@ model Settings {
 model Event {
   id            String   @id @default(uuid())
   title         String
+  slug          String   @unique
   description   String?
   date          String?
   location      String?

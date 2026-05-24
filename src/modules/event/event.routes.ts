@@ -16,6 +16,8 @@ const wrap = (fn: Function) => (req: any, res: any, next: any) =>
 
 // public — no auth required
 router.get('/public', wrap(controller.listPublic))
+router.get('/sitemap', wrap(controller.sitemap))
+router.get('/public/:slug', wrap(controller.getBySlug))
 
 // admin only
 router.use(isAuthenticated, isAdmin)

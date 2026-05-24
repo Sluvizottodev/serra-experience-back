@@ -1,11 +1,50 @@
 import { prisma } from '../../common/config/prisma'
 import { cloudinary } from '../../common/config/cloudinary'
 
+function toSlug(title: string): string {
+  return title
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9\s-]/g, '')
+    .replace(/\s+/g, '-')
+    .replace(/-+/g, '-')
+}
+
+async function uniqueSlug(base: string, excludeId?: string): Promise<string> {
+  let slug = base
+  let attempt = 0
+  while (true) {
+    const found = await prisma.event.findFirst({
+      where: { slug, ...(excludeId ? { NOT: { id: excludeId } } : {}) },
+      select: { id: true },
+    })
+    if (!found) return slug
+    attempt++
+    slug = `${base}-${attempt}`
+  }
+}
+
 export class EventService {
   async listEvents(activeOnly = false) {
     return prisma.event.findMany({
       where: activeOnly ? { active: true } : undefined,
       orderBy: [{ order: 'asc' }, { createdAt: 'desc' }],
+    })
+  }
+
+  async findBySlug(slug: string) {
+    const event = await prisma.event.findFirst({ where: { slug, active: true } })
+    if (!event) throw Object.assign(new Error('Evento não encontrado'), { statusCode: 404 })
+    return event
+  }
+
+  async listSitemap() {
+    return prisma.event.findMany({
+      where: { active: true },
+      select: { slug: true, updatedAt: true },
+      orderBy: { order: 'asc' },
     })
   }
 
@@ -28,7 +67,9 @@ export class EventService {
       select: { id: true },
     })
     if (duplicate) throw Object.assign(new Error('Já existe um evento com este título, data e local'), { statusCode: 409 })
-    return prisma.event.create({ data })
+
+    const slug = await uniqueSlug(toSlug(data.title))
+    return prisma.event.create({ data: { ...data, slug } })
   }
 
   async updateEvent(
@@ -44,9 +85,15 @@ export class EventService {
       order?: number
     },
   ) {
-    const exists = await prisma.event.findUnique({ where: { id }, select: { id: true } })
+    const exists = await prisma.event.findUnique({ where: { id }, select: { id: true, title: true, slug: true } })
     if (!exists) throw Object.assign(new Error('Evento não encontrado'), { statusCode: 404 })
-    return prisma.event.update({ where: { id }, data })
+
+    let slug = exists.slug
+    if (data.title && data.title !== exists.title) {
+      slug = await uniqueSlug(toSlug(data.title), id)
+    }
+
+    return prisma.event.update({ where: { id }, data: { ...data, slug } })
   }
 
   async deleteEvent(id: string) {

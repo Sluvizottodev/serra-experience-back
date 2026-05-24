@@ -9,6 +9,16 @@ export class EventController {
     res.json(events)
   }
 
+  async getBySlug(req: Request, res: Response) {
+    const event = await service.findBySlug(String(req.params.slug))
+    res.json(event)
+  }
+
+  async sitemap(_req: Request, res: Response) {
+    const events = await service.listSitemap()
+    res.json(events)
+  }
+
   async listAdmin(_req: Request, res: Response) {
     const events = await service.listEvents(false)
     res.json(events)
