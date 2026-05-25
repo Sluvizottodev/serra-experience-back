@@ -25,7 +25,7 @@ export class EventController {
   }
 
   async create(req: Request, res: Response) {
-    const { title, description, date, location, link, featured, active, order } = req.body
+    const { title, description, date, endDate, location, link, featured, active, order } = req.body
     if (!title?.trim()) {
       res.status(400).json({ error: 'Título é obrigatório' })
       return
@@ -34,6 +34,7 @@ export class EventController {
       title: title.trim(),
       description: description?.trim(),
       date: date?.trim(),
+      endDate: endDate?.trim(),
       location: location?.trim(),
       link: link?.trim(),
       featured: featured === true || featured === 'true',
@@ -44,11 +45,12 @@ export class EventController {
   }
 
   async update(req: Request, res: Response) {
-    const { title, description, date, location, link, featured, active, order } = req.body
+    const { title, description, date, endDate, location, link, featured, active, order } = req.body
     const data: Record<string, unknown> = {}
     if (title !== undefined) data.title = title.trim()
     if (description !== undefined) data.description = description?.trim() || null
     if (date !== undefined) data.date = date?.trim() || null
+    if (endDate !== undefined) data.endDate = endDate?.trim() || null
     if (location !== undefined) data.location = location?.trim() || null
     if (link !== undefined) data.link = link?.trim() || null
     if (featured !== undefined) data.featured = featured === true || featured === 'true'
