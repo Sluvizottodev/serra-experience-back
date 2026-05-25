@@ -52,6 +52,7 @@ export class EventService {
     title: string
     description?: string
     date?: string
+    endDate?: string
     location?: string
     link?: string
     featured?: boolean
@@ -78,6 +79,7 @@ export class EventService {
       title?: string
       description?: string
       date?: string
+      endDate?: string
       location?: string
       link?: string
       featured?: boolean

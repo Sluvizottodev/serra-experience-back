@@ -327,6 +327,7 @@ model Event {
   slug          String   @unique
   description   String?
   date          String?
+  endDate       String?
   location      String?
   imageUrl      String?
   imagePublicId String?

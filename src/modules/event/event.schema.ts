@@ -11,6 +11,7 @@ export const createEventSchema = z.object({
   title:       z.string().min(1, 'Título é obrigatório').max(100, 'Título não pode exceder 100 caracteres'),
   description: z.string().max(500, 'Descrição não pode exceder 500 caracteres').optional().nullable(),
   date:        z.string().max(50, 'Data inválida').optional().nullable(),
+  endDate:     z.string().max(50, 'Data final inválida').optional().nullable(),
   location:    z.string().max(150, 'Local não pode exceder 150 caracteres').optional().nullable(),
   link:        optionalUrl,
   featured:    z.boolean().optional().default(false),
