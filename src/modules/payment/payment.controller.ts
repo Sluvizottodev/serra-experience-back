@@ -16,7 +16,8 @@ export class PaymentController {
   }
 
   async handleWebhook(req: Request, res: Response) {
-    const data = await service.handleWebhook(req.body)
+    const sellerToken = req.headers['x-seller-token'] as string | undefined
+    const data = await service.handleWebhook(req.body, sellerToken)
     res.json(data)
   }
 }

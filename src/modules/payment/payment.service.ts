@@ -127,7 +127,17 @@ export class PaymentService {
     return trip.payment
   }
 
-  async handleWebhook(body: Record<string, unknown>) {
+  async handleWebhook(body: Record<string, unknown>, sellerToken: string | undefined) {
+    if (!env.PICPAY_SELLER_TOKEN || sellerToken !== env.PICPAY_SELLER_TOKEN) {
+      await logger.log({
+        operationType: 'WEBHOOK',
+        status: '401',
+        severity: 'WARN',
+        requestPayload: { reason: 'invalid_seller_token' },
+      })
+      throw Object.assign(new Error('Unauthorized'), { statusCode: 401 })
+    }
+
     const { referenceId, authorizationId, status } = body
 
     await logger.log({
@@ -145,6 +155,20 @@ export class PaymentService {
       })
 
       if (payment) {
+        const expectedAmount = Number(payment.amount)
+        const receivedAmount = typeof body.amount === 'number' ? body.amount : null
+
+        if (receivedAmount !== null && Math.abs(receivedAmount - expectedAmount) > 0.01) {
+          await logger.log({
+            operationType: 'WEBHOOK',
+            transactionId: String(referenceId),
+            status: 'AMOUNT_MISMATCH',
+            severity: 'ERROR',
+            requestPayload: { expected: expectedAmount, received: receivedAmount },
+          })
+          throw Object.assign(new Error('Payment amount mismatch'), { statusCode: 400 })
+        }
+
         await prisma.$transaction([
           prisma.payment.update({
             where: { id: payment.id },

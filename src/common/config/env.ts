@@ -16,7 +16,7 @@ const envSchema = z.object({
   SMTP_PASS: z.string().optional(),
   MAIL_FROM: z.string().default('noreply@viagem-motorista.com'),
   PICPAY_TOKEN: z.string().optional(),
-  PICPAY_SELLER_TOKEN: z.string().optional(),
+  PICPAY_SELLER_TOKEN: z.string().min(1),
   PICPAY_API_URL: z.string().default('https://appws.picpay.com/ecommerce/public/v2'),
   OPENROUTE_API_KEY: z.string().optional(),
 })

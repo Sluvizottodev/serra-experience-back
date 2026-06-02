@@ -61,6 +61,39 @@ enum Severity {
   ERROR
 }
 
+enum ConditionType {
+  DISTANCE_FROM_BASE_KM
+  TRIP_TOTAL_KM
+  HAS_RETURN
+  VEHICLE_TYPE
+  DEPARTURE_HOUR
+}
+
+enum ConditionOperator {
+  GREATER_THAN
+  GREATER_THAN_OR_EQUAL
+  LESS_THAN
+  LESS_THAN_OR_EQUAL
+  EQUALS
+  NOT_EQUALS
+}
+
+enum ChargeType {
+  PERCENTAGE
+  PER_KM_EXTRA
+}
+
+enum ParameterAction {
+  ADD_CHARGE
+  REQUIRE_WHATSAPP
+}
+
+enum ParameterTarget {
+  TRIPS
+  EVENTS
+  BOTH
+}
+
 model User {
   id            String   @id @default(uuid())
   name          String
@@ -182,8 +215,10 @@ model Trip {
 
 model Quote {
   id                 String         @id @default(uuid())
-  passengerId        String
-  passenger          User           @relation("PassengerQuotes", fields: [passengerId], references: [id], onDelete: Cascade)
+  passengerId        String?
+  passenger          User?          @relation("PassengerQuotes", fields: [passengerId], references: [id], onDelete: Cascade)
+  guestName          String?
+  guestPhone         String?
   driverProfileId    String?
   driverProfile      DriverProfile? @relation(fields: [driverProfileId], references: [id])
   originAddress      String
@@ -316,9 +351,35 @@ model Settings {
   address        String?
   commissionRate Decimal  @default(0.10) @db.Decimal(5, 4)
   timezone       String   @default("America/Sao_Paulo")
+  baseAddress    String?
+  baseLat        Decimal? @db.Decimal(10, 8)
+  baseLng        Decimal? @db.Decimal(11, 8)
   updatedAt      DateTime @updatedAt
 
   @@map("settings")
+}
+
+model TripParameter {
+  id              Int                @id @default(autoincrement())
+  name            String
+  description     String?
+  conditionType   ConditionType
+  conditionOp     ConditionOperator?
+  conditionValue  Decimal?           @db.Decimal(10, 2)
+  conditionValue2 Decimal?           @db.Decimal(10, 2)
+  conditionExtra  String?
+  action          ParameterAction    @default(ADD_CHARGE)
+  chargeType      ChargeType?
+  chargeValue     Decimal?           @db.Decimal(10, 4)
+  appliesTo       ParameterTarget    @default(TRIPS)
+  appliesForQuotes Boolean           @default(true)
+  appliesForDirect Boolean           @default(true)
+  active          Boolean            @default(true)
+  order           Int                @default(0)
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
+
+  @@map("trip_parameters")
 }
 
 model Event {

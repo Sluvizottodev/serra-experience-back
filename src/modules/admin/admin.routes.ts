@@ -22,6 +22,7 @@ router.put('/drivers/:id/approve', wrap(controller.approveDriver))
 router.get('/settings', wrap(controller.getSettings))
 router.put('/settings', wrap(controller.updateSettings))
 router.get('/payment-logs', wrap(controller.getPaymentLogs))
+router.get('/quotes', wrap(controller.listQuotes))
 router.get('/trips', wrap(controller.listTrips))
 
 router.delete('/users/:id', wrap(controller.deleteUser))

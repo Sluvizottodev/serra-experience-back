@@ -50,6 +50,29 @@ export const previewQuoteSchema = z.object({
   }).optional(),
 })
 
+export const createGuestQuoteSchema = z.object({
+  guestName: z.string()
+    .min(2, 'Nome deve ter pelo menos 2 caracteres')
+    .max(100, 'Nome não pode exceder 100 caracteres'),
+  guestPhone: z.string()
+    .regex(/^\d{10,11}$/, 'Telefone inválido (10 ou 11 dígitos)'),
+  originAddress: addressField('Endereço de origem'),
+  destinationAddress: addressField('Endereço de destino'),
+  scheduledAt: z.string()
+    .datetime('Data e hora inválida')
+    .refine(d => new Date(d) > new Date(), 'A data da viagem deve ser no futuro'),
+  passengerCount: z.number()
+    .int('Número de passageiros deve ser um número inteiro')
+    .min(1, 'Deve ter pelo menos 1 passageiro')
+    .max(10, 'Máximo de 10 passageiros permitido')
+    .default(1),
+  notes: z.string()
+    .max(500, 'Notas não podem exceder 500 caracteres')
+    .optional(),
+  driverIds: z.array(z.string().uuid()).optional(),
+})
+
 export type CreateQuoteInput = z.infer<typeof createQuoteSchema>
+export type CreateGuestQuoteInput = z.infer<typeof createGuestQuoteSchema>
 export type RespondQuoteInput = z.infer<typeof respondQuoteSchema>
 export type PreviewQuoteInput = z.infer<typeof previewQuoteSchema>

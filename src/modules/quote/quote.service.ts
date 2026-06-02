@@ -2,7 +2,7 @@ import { prisma } from '../../common/config/prisma'
 import { AppError } from '../../common/middlewares/error.middleware'
 import { getPaginationParams, buildPaginationMeta } from '../../common/utils/pagination'
 import { getRouteDistance } from '../../common/utils/geo'
-import type { CreateQuoteInput, RespondQuoteInput, PreviewQuoteInput } from './quote.schema'
+import type { CreateQuoteInput, CreateGuestQuoteInput, RespondQuoteInput, PreviewQuoteInput } from './quote.schema'
 
 const QUOTE_EXPIRY_HOURS = 48
 
@@ -30,6 +30,41 @@ export class QuoteService {
         expiresAt,
       },
     })
+  }
+
+  async createGuestQuote(data: CreateGuestQuoteInput) {
+    const expiresAt = new Date(Date.now() + QUOTE_EXPIRY_HOURS * 60 * 60 * 1000)
+    const { guestName, guestPhone, driverIds, ...quoteData } = data
+
+    // Se múltiplos motoristas foram selecionados, cria um orçamento por motorista
+    if (driverIds && driverIds.length > 0) {
+      const quotes = await Promise.all(
+        driverIds.map(driverProfileId =>
+          prisma.quote.create({
+            data: {
+              ...quoteData,
+              guestName,
+              guestPhone,
+              driverProfileId,
+              scheduledAt: new Date(quoteData.scheduledAt),
+              expiresAt,
+            },
+          })
+        )
+      )
+      return { quotes, count: quotes.length }
+    }
+
+    const quote = await prisma.quote.create({
+      data: {
+        ...quoteData,
+        guestName,
+        guestPhone,
+        scheduledAt: new Date(quoteData.scheduledAt),
+        expiresAt,
+      },
+    })
+    return { quotes: [quote], count: 1 }
   }
 
   async getMyQuotes(passengerId: string, page = 1, limit = 10) {

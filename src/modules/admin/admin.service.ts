@@ -110,6 +110,9 @@ export class AdminService {
     address?: string
     commissionRate?: number
     timezone?: string
+    baseAddress?: string | null
+    baseLat?: number | null
+    baseLng?: number | null
   }) {
     return prisma.settings.upsert({
       where: { id: 1 },
@@ -202,6 +205,27 @@ export class AdminService {
       prisma.trip.count({ where }),
     ])
     return { trips, total, meta: buildPaginationMeta(total, page, take) }
+  }
+
+  async listQuotes(page = 1, limit = 20, status?: string) {
+    const { take, skip } = getPaginationParams(page, limit)
+    const where: Record<string, unknown> = {}
+    if (status) where.status = status
+
+    const [quotes, total] = await Promise.all([
+      prisma.quote.findMany({
+        where,
+        include: {
+          passenger: { select: { id: true, name: true, email: true, phone: true } },
+          driverProfile: { select: { id: true, vehicleMake: true, vehicleModel: true, user: { select: { name: true } } } },
+        },
+        orderBy: { createdAt: 'desc' },
+        take,
+        skip,
+      }),
+      prisma.quote.count({ where }),
+    ])
+    return { quotes, meta: buildPaginationMeta(total, page, take) }
   }
 
   async getDashboardStats() {

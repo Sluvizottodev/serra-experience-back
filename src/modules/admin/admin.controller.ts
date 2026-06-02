@@ -112,6 +112,16 @@ export class AdminController {
     res.status(204).send()
   }
 
+  async listQuotes(req: Request, res: Response) {
+    const { page, limit, status } = req.query as Record<string, string>
+    const data = await service.listQuotes(
+      Number(page) || 1,
+      Number(limit) || 20,
+      status || undefined,
+    )
+    res.json(data)
+  }
+
   async listTrips(req: Request, res: Response) {
     const { page, limit, status, search } = req.query as Record<string, string>
     const data = await service.listAdminTrips(

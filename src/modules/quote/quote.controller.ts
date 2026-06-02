@@ -10,6 +10,11 @@ export class QuoteController {
     res.json(data)
   }
 
+  async createGuestQuote(req: Request, res: Response) {
+    const data = await service.createGuestQuote(req.body)
+    res.status(201).json(data)
+  }
+
   async createQuote(req: AuthRequest, res: Response) {
     const data = await service.createQuote(req.user!.id, req.body)
     res.status(201).json(data)
