@@ -55,7 +55,7 @@ app.get('/health', (_req, res) => {
 app.get('/api/settings', async (_req, res) => {
   try {
     const s = await adminService.getSettings()
-    res.json({ whatsapp: s.whatsapp ?? null, siteName: s.siteName })
+    res.json({ whatsapp: s.whatsapp ?? null, siteName: s.siteName, baseAddress: s.baseAddress ?? null })
   } catch {
     res.status(500).json({ error: 'Erro ao buscar configurações' })
   }
