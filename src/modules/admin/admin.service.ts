@@ -4,6 +4,11 @@ import { getPaginationParams, buildPaginationMeta } from '../../common/utils/pag
 import { AppError } from '../../common/middlewares/error.middleware'
 import { PaymentLogStatus } from '@prisma/client'
 
+function delta(current: number, previous: number): number | null {
+  if (previous === 0) return null
+  return Math.round(((current - previous) / previous) * 100)
+}
+
 export class AdminService {
   async createAdmin(data: { name: string; email: string; password: string }) {
     const existing = await prisma.user.findUnique({ where: { email: data.email } })
@@ -229,24 +234,117 @@ export class AdminService {
   }
 
   async getDashboardStats() {
-    const [totalUsers, totalDrivers, totalTrips, totalRevenue] = await Promise.all([
+    const now = new Date()
+    const startOfThisMonth = new Date(now.getFullYear(), now.getMonth(), 1)
+    const startOfLastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1)
+
+    const [
+      totalUsers,
+      usersLastMonth,
+      activeDrivers,
+      driversLastMonth,
+      tripsThisMonth,
+      tripsLastMonth,
+      totalRevenue,
+      revenueThisMonth,
+      revenueLastMonth,
+      tripsByStatusRaw,
+      recentTrips,
+      recentQuotes,
+      pendingDriversRaw,
+    ] = await Promise.all([
       prisma.user.count(),
-      prisma.driverProfile.count(),
-      prisma.trip.count(),
+      prisma.user.count({ where: { createdAt: { lt: startOfThisMonth } } }),
+      prisma.driverProfile.count({ where: { isApproved: true } }),
+      prisma.driverProfile.count({ where: { isApproved: true, createdAt: { lt: startOfThisMonth } } }),
+      prisma.trip.count({ where: { createdAt: { gte: startOfThisMonth } } }),
+      prisma.trip.count({ where: { createdAt: { gte: startOfLastMonth, lt: startOfThisMonth } } }),
       prisma.payment.aggregate({ where: { status: PaymentLogStatus.PAID }, _sum: { amount: true } }),
+      prisma.payment.aggregate({ where: { status: PaymentLogStatus.PAID, createdAt: { gte: startOfThisMonth } }, _sum: { amount: true } }),
+      prisma.payment.aggregate({ where: { status: PaymentLogStatus.PAID, createdAt: { gte: startOfLastMonth, lt: startOfThisMonth } }, _sum: { amount: true } }),
+      prisma.trip.groupBy({ by: ['status'], _count: true }),
+      prisma.trip.findMany({
+        take: 5,
+        orderBy: { createdAt: 'desc' },
+        select: {
+          id: true,
+          status: true,
+          createdAt: true,
+          passenger: { select: { name: true } },
+        },
+      }),
+      prisma.quote.findMany({
+        take: 5,
+        orderBy: { createdAt: 'desc' },
+        select: {
+          id: true,
+          status: true,
+          createdAt: true,
+          passenger: { select: { name: true } },
+          guestName: true,
+        },
+      }),
+      prisma.driverProfile.findMany({
+        where: { isApproved: false },
+        select: {
+          id: true,
+          vehicleMake: true,
+          vehicleModel: true,
+          vehicleYear: true,
+          vehiclePlate: true,
+          user: { select: { name: true } },
+        },
+      }),
     ])
 
-    const tripsByStatus = await prisma.trip.groupBy({
-      by: ['status'],
-      _count: true,
-    })
+
+    const TRIP_STATUS_LABELS: Record<string, string> = {
+      COMPLETED: 'Concluídas',
+      IN_PROGRESS: 'Em andamento',
+      PENDING: 'Pendentes',
+      CANCELLED: 'Canceladas',
+      CONFIRMED: 'Confirmadas',
+    }
+
+    const tripsByStatus = tripsByStatusRaw.map(s => ({
+      status: s.status,
+      count: s._count,
+      label: TRIP_STATUS_LABELS[s.status] ?? s.status,
+    }))
+
+    const revenueThisMonthVal = Number(revenueThisMonth._sum.amount || 0)
+    const revenueLastMonthVal = Number(revenueLastMonth._sum.amount || 0)
+
+    // Mescla e ordena atividade recente (viagens + orçamentos), retorna os 8 mais recentes
+    const activity = [
+      ...recentTrips.map(t => ({
+        id: `trip-${t.id}`,
+        description: `Nova viagem criada por ${t.passenger?.name ?? 'Passageiro'}`,
+        createdAt: t.createdAt,
+        type: 'trip',
+      })),
+      ...recentQuotes.map(q => ({
+        id: `quote-${q.id}`,
+        description: `Orçamento solicitado por ${q.passenger?.name ?? q.guestName ?? 'Visitante'}`,
+        createdAt: q.createdAt,
+        type: 'quote',
+      })),
+    ]
+      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
+      .slice(0, 8)
 
     return {
       totalUsers,
-      totalDrivers,
-      totalTrips,
+      deltaUsers: delta(totalUsers - usersLastMonth, usersLastMonth),
+      activeDrivers,
+      deltaDrivers: delta(activeDrivers - driversLastMonth, driversLastMonth),
+      tripsThisMonth,
+      deltaTrips: delta(tripsThisMonth, tripsLastMonth),
       totalRevenue: Number(totalRevenue._sum.amount || 0),
+      deltaRevenue: delta(revenueThisMonthVal, revenueLastMonthVal),
       tripsByStatus,
+      recentActivity: activity,
+      pendingDrivers: pendingDriversRaw,
     }
   }
 }
