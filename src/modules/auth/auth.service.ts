@@ -42,6 +42,28 @@ export class AuthService {
     )
   }
 
+  async resendOtp(email: string) {
+    const user = await prisma.user.findUnique({ where: { email } })
+    if (!user) throw new AppError(404, 'Usuário não encontrado')
+    if (user.isVerified) throw new AppError(400, 'E-mail já verificado')
+
+    const recent = await prisma.otp.findFirst({
+      where: { userId: user.id },
+      orderBy: { createdAt: 'desc' },
+    })
+
+    if (recent) {
+      const secondsSince = (Date.now() - recent.createdAt.getTime()) / 1000
+      if (secondsSince < 60) {
+        const wait = Math.ceil(60 - secondsSince)
+        throw new AppError(429, `Aguarde ${wait} segundos antes de solicitar um novo código`)
+      }
+    }
+
+    await this.sendOtp(user.id, user.email)
+    return { message: 'Novo código enviado para seu e-mail' }
+  }
+
   async verifyOtp(data: VerifyOtpInput) {
     const user = await prisma.user.findUnique({ where: { email: data.email } })
     if (!user) throw new AppError(404, 'Usuário não encontrado')

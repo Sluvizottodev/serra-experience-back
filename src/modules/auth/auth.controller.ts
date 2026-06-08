@@ -33,6 +33,11 @@ export class AuthController {
     res.json(result)
   }
 
+  async resendOtp(req: Request, res: Response) {
+    const result = await service.resendOtp(req.body.email)
+    res.json(result)
+  }
+
   async forgotPassword(req: Request, res: Response) {
     const result = await service.forgotPassword(req.body)
     res.json(result)
