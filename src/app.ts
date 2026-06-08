@@ -51,6 +51,49 @@ app.get('/health', (_req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() })
 })
 
+const SITE_URL = 'https://serraexperience.com.br'
+
+const staticPages = [
+  { loc: '/',                  changefreq: 'weekly',  priority: '1.0' },
+  { loc: '/drivers',           changefreq: 'daily',   priority: '0.9' },
+  { loc: '/orcamento-preview', changefreq: 'monthly', priority: '0.8' },
+]
+
+app.get('/sitemap.xml', async (_req, res) => {
+  try {
+    const today = new Date().toISOString().slice(0, 10)
+
+    const events = await prisma.event.findMany({
+      where: { active: true },
+      select: { slug: true, updatedAt: true },
+      orderBy: { order: 'asc' },
+    })
+
+    const xmlUrl = (loc: string, lastmod: string, changefreq: string, priority: string) =>
+      `  <url>\n    <loc>${SITE_URL}${loc}</loc>\n    <lastmod>${lastmod}</lastmod>\n    <changefreq>${changefreq}</changefreq>\n    <priority>${priority}</priority>\n  </url>`
+
+    const urls = [
+      ...staticPages.map(p => xmlUrl(p.loc, today, p.changefreq, p.priority)),
+      ...events.map(ev =>
+        xmlUrl(
+          `/eventos/${ev.slug}`,
+          ev.updatedAt.toISOString().slice(0, 10),
+          'weekly',
+          '0.8',
+        )
+      ),
+    ]
+
+    const xml = `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls.join('\n\n')}\n</urlset>`
+
+    res.setHeader('Content-Type', 'application/xml')
+    res.setHeader('Cache-Control', 'public, max-age=3600')
+    res.send(xml)
+  } catch {
+    res.status(500).send('Erro ao gerar sitemap')
+  }
+})
+
 // Rotas públicas (sem prefixo /api — o frontend chama com barra inicial que remove o baseURL /api/)
 app.get('/api/settings', async (_req, res) => {
   try {

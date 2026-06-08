@@ -25,6 +25,7 @@ router.get('/payment-logs', wrap(controller.getPaymentLogs))
 router.get('/quotes', wrap(controller.listQuotes))
 router.get('/trips', wrap(controller.listTrips))
 
+router.patch('/users/:id/lock', wrap(controller.toggleUserLock))
 router.delete('/users/:id', wrap(controller.deleteUser))
 
 router.get('/reviews', wrap(controller.listReviews))

@@ -106,6 +106,15 @@ export class AdminController {
     res.status(204).send()
   }
 
+  async toggleUserLock(req: Request, res: Response) {
+    const { lock } = req.body
+    if (typeof lock !== 'boolean') {
+      res.status(400).json({ error: 'lock deve ser booleano' }); return
+    }
+    const data = await service.toggleUserLock(String(req.params.id), lock)
+    res.json(data)
+  }
+
   async deleteUser(req: Request, res: Response) {
     const deleted = await service.deleteUser(String(req.params.id))
     if (!deleted) { res.status(404).json({ error: 'Usuário não encontrado' }); return }
