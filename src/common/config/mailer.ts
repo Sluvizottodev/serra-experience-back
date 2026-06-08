@@ -1,30 +1,24 @@
-import nodemailer from 'nodemailer'
+import { Resend } from 'resend'
 import { env } from './env'
 
-const smtpConfigured = !!(env.SMTP_USER && env.SMTP_PASS)
-
-export const transporter = smtpConfigured
-  ? nodemailer.createTransport({
-      host: env.SMTP_HOST,
-      port: Number(env.SMTP_PORT),
-      auth: {
-        user: env.SMTP_USER,
-        pass: env.SMTP_PASS,
-      },
-    })
-  : null
+const resend = env.RESEND_API_KEY ? new Resend(env.RESEND_API_KEY) : null
 
 export async function sendMail(to: string, subject: string, html: string) {
-  if (!transporter) {
+  if (!resend) {
     console.log(`[MAIL] To: ${to} | Subject: ${subject}`)
     const otpMatch = html.match(/\b\d{6}\b/)
     if (otpMatch) console.log(`[MAIL] OTP CODE: ${otpMatch[0]}`)
     return
   }
-  await transporter.sendMail({
+
+  const { error } = await resend.emails.send({
     from: env.MAIL_FROM,
     to,
     subject,
     html,
   })
+
+  if (error) {
+    throw new Error(`Resend error: ${error.message}`)
+  }
 }
