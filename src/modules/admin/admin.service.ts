@@ -51,6 +51,13 @@ export class AdminService {
     return { users, meta: buildPaginationMeta(total, page, take) }
   }
 
+  async toggleUserLock(userId: string, lock: boolean) {
+    const user = await prisma.user.findUnique({ where: { id: userId }, select: { id: true, role: true } })
+    if (!user) throw new AppError(404, 'Usuário não encontrado')
+    if (user.role === 'ADMIN') throw new AppError(400, 'Não é possível bloquear um administrador')
+    return prisma.user.update({ where: { id: userId }, data: { isLocked: lock }, select: { id: true, isLocked: true } })
+  }
+
   async verifyUserDocument(userId: string, action: 'APPROVED' | 'REJECTED') {
     const user = await prisma.user.findUnique({ where: { id: userId }, select: { id: true, idStatus: true } })
     if (!user) throw Object.assign(new Error('Usuário não encontrado'), { statusCode: 404 })
