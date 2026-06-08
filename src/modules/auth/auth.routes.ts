@@ -6,6 +6,7 @@ import {
   registerSchema,
   loginSchema,
   verifyOtpSchema,
+  resendOtpSchema,
   forgotPasswordSchema,
   resetPasswordSchema,
 } from './auth.schema'
@@ -19,6 +20,12 @@ const authLimiter = rateLimit({
   message: { error: 'Muitas tentativas. Tente novamente em 15 minutos.' },
 })
 
+const resendOtpLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 3,
+  message: { error: 'Limite de reenvios atingido. Tente novamente em 15 minutos.' },
+})
+
 const wrap = (fn: Function) => (req: any, res: any, next: any) =>
   Promise.resolve(fn.call(controller, req, res, next)).catch((err: any) => {
     const status = err.statusCode ?? 400
@@ -28,6 +35,7 @@ const wrap = (fn: Function) => (req: any, res: any, next: any) =>
 router.post('/register', authLimiter, validate(registerSchema), wrap(controller.register))
 router.post('/login', authLimiter, validate(loginSchema), wrap(controller.login))
 router.post('/verify-otp', authLimiter, validate(verifyOtpSchema), wrap(controller.verifyOtp))
+router.post('/resend-otp', resendOtpLimiter, validate(resendOtpSchema), wrap(controller.resendOtp))
 router.post('/refresh-token', wrap(controller.refreshToken))
 router.post('/logout', wrap(controller.logout))
 router.post('/forgot-password', authLimiter, validate(forgotPasswordSchema), wrap(controller.forgotPassword))

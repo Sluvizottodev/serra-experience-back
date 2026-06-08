@@ -39,6 +39,12 @@ export const verifyOtpSchema = z.object({
     .regex(/^\d{6}$/, 'Código deve conter apenas números'),
 })
 
+export const resendOtpSchema = z.object({
+  email: z.string()
+    .email('E-mail inválido')
+    .transform(e => e.toLowerCase().trim()),
+})
+
 export const forgotPasswordSchema = z.object({
   email: z.string()
     .email('E-mail inválido')
