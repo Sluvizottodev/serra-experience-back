@@ -1,7 +1,8 @@
 import crypto from 'crypto'
 
 export function generateOtp(): string {
-  return Math.floor(100000 + Math.random() * 900000).toString()
+  const buf = crypto.randomInt(100000, 1000000)
+  return buf.toString()
 }
 
 export function generateSecureToken(): string {

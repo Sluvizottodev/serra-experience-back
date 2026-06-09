@@ -61,6 +61,12 @@ enum Severity {
   ERROR
 }
 
+enum VehicleStatus {
+  PENDING
+  APPROVED
+  REVIEW_PENDING
+}
+
 enum ConditionType {
   DISTANCE_FROM_BASE_KM
   TRIP_TOTAL_KM
@@ -124,27 +130,30 @@ model User {
 }
 
 model DriverProfile {
-  id              String   @id @default(uuid())
-  userId          String   @unique
-  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id              String        @id @default(uuid())
+  userId          String        @unique
+  user            User          @relation(fields: [userId], references: [id], onDelete: Cascade)
   bio             String?
-  vehicleMake     String
-  vehicleModel    String
-  vehicleYear     Int
-  vehiclePlate    String   @unique
-  vehicleColor    String
-  vehicleCapacity Int
-  licenseNumber   String
-  licenseExpiry   DateTime
-  rating          Decimal  @default(0) @db.Decimal(3, 2)
-  totalTrips      Int      @default(0)
-  isAvailable     Boolean  @default(true)
-  isApproved      Boolean  @default(false)
-  baseRatePerKm   Decimal  @db.Decimal(10, 2)
-  baseRatePerHour Decimal  @db.Decimal(10, 2)
+  birthDate       DateTime?
+  address         String?
+  vehicleStatus   VehicleStatus @default(APPROVED)
+  vehicleMake     String?
+  vehicleModel    String?
+  vehicleYear     Int?
+  vehiclePlate    String?       @unique
+  vehicleColor    String?
+  vehicleCapacity Int?
+  licenseNumber   String?
+  licenseExpiry   DateTime?
+  rating          Decimal       @default(0) @db.Decimal(3, 2)
+  totalTrips      Int           @default(0)
+  isAvailable     Boolean       @default(true)
+  isApproved      Boolean       @default(false)
+  baseRatePerKm   Decimal?      @db.Decimal(10, 2)
+  baseRatePerHour Decimal?      @db.Decimal(10, 2)
   vehiclePhotoUrl String?
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
 
   availabilities Availability[]
   trips          Trip[]

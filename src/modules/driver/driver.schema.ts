@@ -1,40 +1,60 @@
 import { z } from 'zod'
 
 export const createDriverProfileSchema = z.object({
+  // Passo 1 — dados pessoais (opcionais para permitir criação parcial)
+  birthDate: z.string()
+    .datetime({ message: 'Data de nascimento inválida' })
+    .optional(),
+  address: z.string()
+    .min(5, 'Endereço deve ter pelo menos 5 caracteres')
+    .max(300, 'Endereço muito longo')
+    .optional(),
   bio: z.string()
     .max(500, 'Bio não pode exceder 500 caracteres')
     .optional(),
+
+  // Passo 2 — dados do veículo (opcionais para permitir criação em 2 etapas)
   vehicleMake: z.string()
-    .min(1, 'Marca do veículo é obrigatória'),
+    .min(1, 'Marca do veículo é obrigatória')
+    .optional(),
   vehicleModel: z.string()
-    .min(1, 'Modelo do veículo é obrigatório'),
+    .min(1, 'Modelo do veículo é obrigatório')
+    .optional(),
   vehicleYear: z.number()
     .int('Ano deve ser um número inteiro')
     .min(2000, 'Ano do veículo deve ser 2000 ou posterior')
-    .max(2030, 'Ano do veículo não pode ser no futuro'),
+    .max(2030, 'Ano do veículo não pode ser no futuro')
+    .optional(),
   vehiclePlate: z.string()
     .regex(/^[A-Z]{3}-?\d{4}$/, 'Placa inválida (formato: ABC-1234)')
-    .transform(p => p.replace('-', '').toUpperCase()),
+    .transform(p => p.replace('-', '').toUpperCase())
+    .optional(),
   vehicleColor: z.string()
-    .min(1, 'Cor do veículo é obrigatória'),
+    .min(1, 'Cor do veículo é obrigatória')
+    .optional(),
   vehicleCapacity: z.number()
     .int('Capacidade deve ser um número inteiro')
     .min(1, 'Capacidade deve ser pelo menos 1')
-    .max(10, 'Capacidade máxima é 10'),
+    .max(10, 'Capacidade máxima é 10')
+    .optional(),
   licenseNumber: z.string()
-    .min(1, 'Número da carteira é obrigatório'),
+    .min(1, 'Número da carteira é obrigatório')
+    .optional(),
   licenseExpiry: z.string()
     .datetime('Data inválida')
-    .refine((date) => new Date(date) > new Date(), 'Carteira deve estar válida'),
+    .refine((date) => new Date(date) > new Date(), 'Carteira deve estar válida')
+    .optional(),
   baseRatePerKm: z.number()
     .positive('Taxa por km deve ser positiva')
-    .max(100, 'Taxa por km muito alta'),
+    .max(100, 'Taxa por km muito alta')
+    .optional(),
   baseRatePerHour: z.number()
     .positive('Taxa por hora deve ser positiva')
-    .max(200, 'Taxa por hora muito alta'),
+    .max(200, 'Taxa por hora muito alta')
+    .optional(),
 })
 
-export const updateDriverProfileSchema = createDriverProfileSchema.partial()
+export const updateDriverProfileSchema = createDriverProfileSchema
 
 export const availabilitySchema = z.object({
   date: z.string()
@@ -58,14 +78,10 @@ export const availabilitySchema = z.object({
 })
 
 export const driverSearchSchema = z.object({
-  date: z.string()
-    .optional(),
-  capacity: z.string()
-    .optional(),
-  page: z.string()
-    .optional(),
-  limit: z.string()
-    .optional(),
+  date: z.string().optional(),
+  capacity: z.string().optional(),
+  page: z.string().optional(),
+  limit: z.string().optional(),
 })
 
 export type CreateDriverProfileInput = z.infer<typeof createDriverProfileSchema>

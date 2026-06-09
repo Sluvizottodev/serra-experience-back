@@ -173,7 +173,11 @@ export class AuthService {
       await prisma.refreshToken.deleteMany({ where: { token: refreshToken } })
     }
 
-    res.clearCookie('refreshToken')
+    res.clearCookie('refreshToken', {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'strict',
+    })
     return { message: 'Logout realizado com sucesso' }
   }
 

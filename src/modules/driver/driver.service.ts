@@ -4,9 +4,18 @@ import { AppError } from '../../common/middlewares/error.middleware'
 import { getPaginationParams, buildPaginationMeta } from '../../common/utils/pagination'
 import type { CreateDriverProfileInput, UpdateDriverProfileInput, AvailabilityInput } from './driver.schema'
 
+const VEHICLE_FIELDS = [
+  'vehicleMake', 'vehicleModel', 'vehicleYear', 'vehiclePlate',
+  'vehicleColor', 'vehicleCapacity', 'licenseNumber', 'licenseExpiry',
+  'baseRatePerKm', 'baseRatePerHour',
+] as const
+
 const driverSelect = {
   id: true,
   bio: true,
+  birthDate: true,
+  address: true,
+  vehicleStatus: true,
   vehicleMake: true,
   vehicleModel: true,
   vehicleYear: true,
@@ -122,13 +131,15 @@ export class DriverService {
     const existing = await prisma.driverProfile.findUnique({ where: { userId } })
     if (existing) throw new AppError(409, 'Você já possui um perfil de motorista')
 
-    return prisma.driverProfile.create({
-      data: {
-        ...data,
-        userId,
-        licenseExpiry: new Date(data.licenseExpiry),
-      },
-    })
+    const createData: Record<string, unknown> = {
+      ...data,
+      userId,
+      vehicleStatus: 'PENDING',
+    }
+    if (data.birthDate) createData.birthDate = new Date(data.birthDate)
+    if (data.licenseExpiry) createData.licenseExpiry = new Date(data.licenseExpiry)
+
+    return prisma.driverProfile.create({ data: createData as any })
   }
 
   async updateProfile(userId: string, data: UpdateDriverProfileInput) {
@@ -136,9 +147,19 @@ export class DriverService {
     if (!profile) throw new AppError(404, 'Perfil de motorista não encontrado')
 
     const updateData: Record<string, unknown> = { ...data }
+    if (data.birthDate) updateData.birthDate = new Date(data.birthDate)
     if (data.licenseExpiry) updateData.licenseExpiry = new Date(data.licenseExpiry)
 
-    return prisma.driverProfile.update({ where: { userId }, data: updateData })
+    // Se o motorista já está aprovado e está alterando dados do veículo,
+    // marca para revisão (não bloqueia corridas, apenas sinaliza ao admin)
+    const vehicleFieldChanged = VEHICLE_FIELDS.some(
+      f => f in data && (data as any)[f] !== undefined
+    )
+    if (profile.isApproved && vehicleFieldChanged && profile.vehicleStatus === 'APPROVED') {
+      updateData.vehicleStatus = 'REVIEW_PENDING'
+    }
+
+    return prisma.driverProfile.update({ where: { userId }, data: updateData as any })
   }
 
   async uploadVehiclePhoto(userId: string, fileBuffer: Buffer) {

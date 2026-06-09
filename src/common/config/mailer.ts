@@ -5,9 +5,11 @@ const resend = env.RESEND_API_KEY ? new Resend(env.RESEND_API_KEY) : null
 
 export async function sendMail(to: string, subject: string, html: string) {
   if (!resend) {
-    console.log(`[MAIL] To: ${to} | Subject: ${subject}`)
-    const otpMatch = html.match(/\b\d{6}\b/)
-    if (otpMatch) console.log(`[MAIL] OTP CODE: ${otpMatch[0]}`)
+    if (env.NODE_ENV !== 'production') {
+      console.log(`[MAIL] To: ${to} | Subject: ${subject}`)
+      const otpMatch = /\b\d{6}\b/.exec(html)
+      if (otpMatch) console.log(`[MAIL] OTP CODE: ${otpMatch[0]}`)
+    }
     return
   }
 

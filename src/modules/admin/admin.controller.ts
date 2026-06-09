@@ -35,18 +35,24 @@ export class AdminController {
   }
 
   async listDrivers(req: Request, res: Response) {
-    const approved = req.query.approved !== undefined ? req.query.approved === 'true' : undefined
-    const data = await service.listDrivers(approved, Number(req.query.page) || 1, Number(req.query.limit) || 20)
+    const approved = req.query.approved === undefined ? undefined : req.query.approved === 'true'
+    const vehicleStatus = typeof req.query.vehicleStatus === 'string' ? req.query.vehicleStatus : undefined
+    const data = await service.listDrivers(approved, vehicleStatus, Number(req.query.page) || 1, Number(req.query.limit) || 20)
     res.json(data)
   }
 
   async approveDriver(req: Request, res: Response) {
     const { approved } = req.body
-    if (typeof approved !== 'boolean') {
-      res.status(400).json({ error: 'approved deve ser booleano' })
+    if (typeof approved === 'boolean') {
+      const data = await service.approveDriver(String(req.params.id), approved)
+      res.json(data)
       return
     }
-    const data = await service.approveDriver(String(req.params.id), approved)
+    res.status(400).json({ error: 'approved deve ser booleano' })
+  }
+
+  async approveVehicle(req: Request, res: Response) {
+    const data = await service.approveVehicle(String(req.params.id))
     res.json(data)
   }
 
