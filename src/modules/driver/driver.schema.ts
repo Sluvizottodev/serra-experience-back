@@ -3,7 +3,7 @@ import { z } from 'zod'
 export const createDriverProfileSchema = z.object({
   // Passo 1 — dados pessoais (opcionais para permitir criação parcial)
   birthDate: z.string()
-    .datetime({ message: 'Data de nascimento inválida' })
+    .refine(v => !Number.isNaN(Date.parse(v)), { message: 'Data de nascimento inválida' })
     .optional(),
   address: z.string()
     .min(5, 'Endereço deve ter pelo menos 5 caracteres')
