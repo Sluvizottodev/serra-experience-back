@@ -16,7 +16,7 @@ export class QuoteService {
       
       if (!driver) throw new AppError(404, 'Motorista não encontrado')
       if (!driver.isAvailable) throw new AppError(400, 'Motorista não está disponível no momento')
-      if (driver.vehicleCapacity < data.passengerCount) {
+      if (driver.vehicleCapacity !== null && driver.vehicleCapacity < data.passengerCount) {
         throw new AppError(400, `O veículo deste motorista comporta apenas ${driver.vehicleCapacity} ${driver.vehicleCapacity === 1 ? 'passageiro' : 'passageiros'}, mas você solicitou ${data.passengerCount}`)
       }
     }

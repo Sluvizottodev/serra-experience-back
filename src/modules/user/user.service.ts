@@ -23,6 +23,8 @@ export class UserService {
             id: true,
             isApproved: true,
             isAvailable: true,
+            vehicleStatus: true,
+            vehicleMake: true,
             rating: true,
             totalTrips: true,
           },

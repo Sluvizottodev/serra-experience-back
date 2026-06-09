@@ -71,9 +71,11 @@ export class AdminService {
     })
   }
 
-  async listDrivers(approved?: boolean, page = 1, limit = 20) {
+  async listDrivers(approved?: boolean, vehicleStatus?: string, page = 1, limit = 20) {
     const { take, skip } = getPaginationParams(page, limit)
-    const where = approved !== undefined ? { isApproved: approved } : {}
+    const where: Record<string, unknown> = {}
+    if (approved !== undefined) where.isApproved = approved
+    if (vehicleStatus) where.vehicleStatus = vehicleStatus
 
     const [drivers, total] = await Promise.all([
       prisma.driverProfile.findMany({
@@ -87,23 +89,61 @@ export class AdminService {
       }),
       prisma.driverProfile.count({ where }),
     ])
-    return { drivers, meta: buildPaginationMeta(total, page, take) }
+
+    const totalAll      = await prisma.driverProfile.count()
+    const totalPending  = await prisma.driverProfile.count({ where: { isApproved: false } })
+    const totalApproved = await prisma.driverProfile.count({ where: { isApproved: true } })
+    // cast needed until TS server reloads after prisma generate
+    const totalVehicleReview = await prisma.driverProfile.count({ where: { vehicleStatus: 'REVIEW_PENDING' } as any })
+
+    return {
+      drivers,
+      meta: buildPaginationMeta(total, page, take),
+      totalAll,
+      totalPending,
+      totalApproved,
+      totalVehicleReview,
+    }
   }
 
   async approveDriver(driverProfileId: string, approved: boolean) {
-    const driver = await prisma.driverProfile.findUnique({ where: { id: driverProfileId }, select: { id: true, isApproved: true } })
+    const driver = await prisma.driverProfile.findUnique({
+      where: { id: driverProfileId },
+      select: { id: true, isApproved: true, vehicleStatus: true },
+    })
     if (!driver) throw Object.assign(new Error('Motorista não encontrado'), { statusCode: 404 })
     if (driver.isApproved === approved) {
       return prisma.driverProfile.findUnique({
         where: { id: driverProfileId },
-        select: { id: true, isApproved: true, user: { select: { name: true, email: true } } },
+        select: { id: true, isApproved: true, vehicleStatus: true, user: { select: { name: true, email: true } } },
       })
+    }
+    const data: Record<string, unknown> = { isApproved: approved }
+    // Ao aprovar o motorista pela primeira vez, aprova o veículo junto
+    if (approved && driver.vehicleStatus === 'PENDING') {
+      data.vehicleStatus = 'APPROVED'
     }
     return prisma.driverProfile.update({
       where: { id: driverProfileId },
-      data: { isApproved: approved },
-      select: { id: true, isApproved: true, user: { select: { name: true, email: true } } },
+      data: data as any,
+      select: { id: true, isApproved: true, vehicleStatus: true, user: { select: { name: true, email: true } } },
     })
+  }
+
+  async approveVehicle(driverProfileId: string) {
+    const driver = await prisma.driverProfile.findUnique({
+      where: { id: driverProfileId },
+      select: { id: true, vehicleStatus: true },
+    })
+    if (!driver) throw Object.assign(new Error('Motorista não encontrado'), { statusCode: 404 })
+    if (driver.vehicleStatus === 'REVIEW_PENDING') {
+      return prisma.driverProfile.update({
+        where: { id: driverProfileId },
+        data: { vehicleStatus: 'APPROVED' } as any,
+        select: { id: true, vehicleStatus: true, user: { select: { name: true, email: true } } },
+      })
+    }
+    throw Object.assign(new Error('Veículo não está aguardando revisão'), { statusCode: 400 })
   }
 
   async getSettings() {
