@@ -4,6 +4,10 @@ import { getPaginationParams, buildPaginationMeta } from '../../common/utils/pag
 import { AppError } from '../../common/middlewares/error.middleware'
 import { PaymentLogStatus } from '@prisma/client'
 
+type VehicleStatus = 'PENDING' | 'APPROVED' | 'REVIEW_PENDING'
+
+type DriverProfileUpdateData = { isApproved?: boolean; vehicleStatus?: VehicleStatus }
+
 function delta(current: number, previous: number): number | null {
   if (previous === 0) return null
   return Math.round(((current - previous) / previous) * 100)
@@ -118,14 +122,14 @@ export class AdminService {
         select: { id: true, isApproved: true, vehicleStatus: true, user: { select: { name: true, email: true } } },
       })
     }
-    const data: Record<string, unknown> = { isApproved: approved }
+    const data: DriverProfileUpdateData = { isApproved: approved }
     // Ao aprovar o motorista pela primeira vez, aprova o veículo junto
     if (approved && driver.vehicleStatus === 'PENDING') {
       data.vehicleStatus = 'APPROVED'
     }
     return prisma.driverProfile.update({
       where: { id: driverProfileId },
-      data: data as any,
+      data,
       select: { id: true, isApproved: true, vehicleStatus: true, user: { select: { name: true, email: true } } },
     })
   }
