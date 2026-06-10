@@ -1,6 +1,7 @@
 import { prisma } from '../../common/config/prisma'
 import { cloudinary } from '../../common/config/cloudinary'
 import { AppError } from '../../common/middlewares/error.middleware'
+import { encrypt } from '../../common/utils/crypto'
 import type { UpdateUserInput } from './user.schema'
 
 export class UserService {
@@ -32,24 +33,32 @@ export class UserService {
       },
     })
     if (!user) throw new AppError(404, 'Usuário não encontrado')
-    return user
+    // nunca expõe o CPF criptografado — apenas informa se está preenchido
+    const { cpf, ...rest } = user
+    return { ...rest, hasCpf: !!cpf }
   }
 
   async updateMe(userId: string, data: UpdateUserInput) {
-    return prisma.user.update({
+    const updateData = {
+      ...data,
+      cpf: data.cpf ? encrypt(data.cpf) : undefined,
+    }
+    const user = await prisma.user.update({
       where: { id: userId },
-      data,
+      data: updateData,
       select: {
         id: true,
         name: true,
         email: true,
         phone: true,
-        cpf: true,
         role: true,
         isVerified: true,
         avatarUrl: true,
+        cpf: true,
       },
     })
+    const { cpf, ...rest } = user
+    return { ...rest, hasCpf: !!cpf }
   }
 
   async uploadAvatar(userId: string, fileBuffer: Buffer, mimetype: string) {

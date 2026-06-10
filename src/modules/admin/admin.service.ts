@@ -3,6 +3,7 @@ import { prisma } from '../../common/config/prisma'
 import { getPaginationParams, buildPaginationMeta } from '../../common/utils/pagination'
 import { AppError } from '../../common/middlewares/error.middleware'
 import { PaymentLogStatus } from '@prisma/client'
+import { decrypt } from '../../common/utils/crypto'
 
 type VehicleStatus = 'PENDING' | 'APPROVED' | 'REVIEW_PENDING'
 
@@ -53,6 +54,29 @@ export class AdminService {
       prisma.user.count(),
     ])
     return { users, meta: buildPaginationMeta(total, page, take) }
+  }
+
+  async getUserDetail(userId: string) {
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        phone: true,
+        cpf: true,
+        role: true,
+        isVerified: true,
+        idStatus: true,
+        isLocked: true,
+        createdAt: true,
+      },
+    })
+    if (!user) throw new AppError(404, 'Usuário não encontrado')
+    return {
+      ...user,
+      cpf: user.cpf ? decrypt(user.cpf) : null,
+    }
   }
 
   async toggleUserLock(userId: string, lock: boolean) {

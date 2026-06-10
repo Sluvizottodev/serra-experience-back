@@ -4,6 +4,7 @@ import { sendMail } from '../../common/config/mailer'
 import { AppError } from '../../common/middlewares/error.middleware'
 import { signAccessToken, signRefreshToken, verifyRefreshToken } from '../../common/utils/jwt'
 import { generateOtp, generateSecureToken } from '../../common/utils/otp'
+import { encrypt } from '../../common/utils/crypto'
 import type { RegisterInput, LoginInput, VerifyOtpInput, ForgotPasswordInput, ResetPasswordInput } from './auth.schema'
 
 const OTP_EXPIRY_MINUTES = 10
@@ -20,7 +21,7 @@ export class AuthService {
         email: data.email,
         password: hashed,
         phone: data.phone,
-        cpf: data.cpf,
+        cpf: data.cpf ? encrypt(data.cpf) : undefined,
         role: data.role,
       },
     })

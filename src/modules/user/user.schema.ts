@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { isValidCpf } from '../../common/utils/cpf'
 
 export const updateUserSchema = z.object({
   name: z.string()
@@ -10,6 +11,7 @@ export const updateUserSchema = z.object({
     .optional(),
   cpf: z.string()
     .regex(/^\d{11}$/, 'CPF deve ter 11 dígitos')
+    .refine(isValidCpf, 'CPF inválido')
     .optional(),
 })
 

@@ -16,6 +16,7 @@ const envSchema = z.object({
   PICPAY_SELLER_TOKEN: z.string().min(1),
   PICPAY_API_URL: z.string().default('https://appws.picpay.com/ecommerce/public/v2'),
   OPENROUTE_API_KEY: z.string().optional(),
+  CPF_ENCRYPTION_KEY: z.string().length(64, 'CPF_ENCRYPTION_KEY deve ter 64 caracteres hex (256 bits)'),
 })
 
 const parsed = envSchema.safeParse(process.env)
