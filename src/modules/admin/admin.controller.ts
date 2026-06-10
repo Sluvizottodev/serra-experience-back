@@ -24,6 +24,11 @@ export class AdminController {
     res.json(data)
   }
 
+  async getUserDetail(req: Request, res: Response) {
+    const data = await service.getUserDetail(String(req.params.id))
+    res.json(data)
+  }
+
   async verifyUserDocument(req: Request, res: Response) {
     const { action } = req.body
     if (!['APPROVED', 'REJECTED'].includes(action)) {

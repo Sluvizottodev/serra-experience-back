@@ -3,6 +3,7 @@ import { v4 as uuid } from 'uuid'
 import { prisma } from '../../common/config/prisma'
 import { env } from '../../common/config/env'
 import { PaymentLoggerService } from './payment.logger'
+import { decrypt } from '../../common/utils/crypto'
 
 const logger = new PaymentLoggerService()
 const MAX_RETRIES = 3
@@ -81,7 +82,7 @@ export class PaymentService {
       buyer: {
         firstName: trip.passenger.name.split(' ')[0],
         lastName: trip.passenger.name.split(' ').slice(1).join(' ') || 'N/A',
-        document: trip.passenger.cpf || '000.000.000-00',
+        document: trip.passenger.cpf ? decrypt(trip.passenger.cpf) : '000.000.000-00',
         email: trip.passenger.email,
         phone: trip.passenger.phone || '+5500000000000',
       },

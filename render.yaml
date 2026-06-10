@@ -38,3 +38,5 @@ services:
         sync: false
       - key: PICPAY_API_URL
         value: https://appws.picpay.com/ecommerce/public/v2
+      - key: CPF_ENCRYPTION_KEY
+        sync: false
