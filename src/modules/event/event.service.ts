@@ -55,6 +55,7 @@ export class EventService {
     endDate?: string
     location?: string
     link?: string
+    price?: number | null
     featured?: boolean
     active?: boolean
     soldOut?: boolean
@@ -83,6 +84,7 @@ export class EventService {
       endDate?: string
       location?: string
       link?: string
+      price?: number | null
       featured?: boolean
       active?: boolean
       soldOut?: boolean

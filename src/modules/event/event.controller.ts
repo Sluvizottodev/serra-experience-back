@@ -3,6 +3,12 @@ import { EventService } from './event.service'
 
 const service = new EventService()
 
+function parsePrice(value: unknown): number | null {
+  if (value == null) return null
+  const n = Number(value)
+  return Number.isNaN(n) ? null : n
+}
+
 export class EventController {
   async listPublic(_req: Request, res: Response) {
     const events = await service.listEvents(true)
@@ -25,7 +31,7 @@ export class EventController {
   }
 
   async create(req: Request, res: Response) {
-    const { title, description, date, endDate, location, link, featured, active, soldOut, order } = req.body
+    const { title, description, date, endDate, location, link, price, featured, active, soldOut, order } = req.body
     if (!title?.trim()) {
       res.status(400).json({ error: 'Título é obrigatório' })
       return
@@ -37,6 +43,7 @@ export class EventController {
       endDate: endDate?.trim(),
       location: location?.trim(),
       link: link?.trim(),
+      price: parsePrice(price),
       featured: featured === true || featured === 'true',
       active: active !== false && active !== 'false',
       soldOut: soldOut === true || soldOut === 'true',
@@ -46,7 +53,7 @@ export class EventController {
   }
 
   async update(req: Request, res: Response) {
-    const { title, description, date, endDate, location, link, featured, active, soldOut, order } = req.body
+    const { title, description, date, endDate, location, link, price, featured, active, soldOut, order } = req.body
     const data: Record<string, unknown> = {}
     if (title !== undefined) data.title = title.trim()
     if (description !== undefined) data.description = description?.trim() || null
@@ -54,6 +61,7 @@ export class EventController {
     if (endDate !== undefined) data.endDate = endDate?.trim() || null
     if (location !== undefined) data.location = location?.trim() || null
     if (link !== undefined) data.link = link?.trim() || null
+    if (price !== undefined) data.price = parsePrice(price)
     if (featured !== undefined) data.featured = featured === true || featured === 'true'
     if (active !== undefined) data.active = active === true || active === 'true'
     if (soldOut !== undefined) data.soldOut = soldOut === true || soldOut === 'true'

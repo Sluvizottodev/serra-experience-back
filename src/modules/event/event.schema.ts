@@ -14,6 +14,7 @@ export const createEventSchema = z.object({
   endDate:     z.string().max(50, 'Data final inválida').optional().nullable(),
   location:    z.string().max(150, 'Local não pode exceder 150 caracteres').optional().nullable(),
   link:        optionalUrl,
+  price:       z.number().int('Preço deve ser inteiro').min(0).max(99999).optional().nullable(),
   featured:    z.boolean().optional().default(false),
   active:      z.boolean().optional().default(true),
   soldOut:     z.boolean().optional().default(false),
