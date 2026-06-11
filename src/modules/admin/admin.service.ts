@@ -4,6 +4,8 @@ import { getPaginationParams, buildPaginationMeta } from '../../common/utils/pag
 import { AppError } from '../../common/middlewares/error.middleware'
 import { PaymentLogStatus } from '@prisma/client'
 import { decrypt } from '../../common/utils/crypto'
+import { sendMail } from '../../common/config/mailer'
+import { tplMotoristaAprovado } from '../../common/utils/email.templates'
 
 type VehicleStatus = 'PENDING' | 'APPROVED' | 'REVIEW_PENDING'
 
@@ -147,15 +149,19 @@ export class AdminService {
       })
     }
     const data: DriverProfileUpdateData = { isApproved: approved }
-    // Ao aprovar o motorista pela primeira vez, aprova o veículo junto
     if (approved && driver.vehicleStatus === 'PENDING') {
       data.vehicleStatus = 'APPROVED'
     }
-    return prisma.driverProfile.update({
+    const updated = await prisma.driverProfile.update({
       where: { id: driverProfileId },
       data,
       select: { id: true, isApproved: true, vehicleStatus: true, user: { select: { name: true, email: true } } },
     })
+
+    const { subject, html } = tplMotoristaAprovado({ driverName: updated.user.name, approved })
+    sendMail(updated.user.email, subject, html).catch(() => {})
+
+    return updated
   }
 
   async approveVehicle(driverProfileId: string) {

@@ -1,7 +1,9 @@
 import { Request, Response } from 'express'
 import { AdminService } from './admin.service'
+import { QuoteService } from '../quote/quote.service'
 
 const service = new AdminService()
+const quoteService = new QuoteService()
 
 export class AdminController {
   async createAdmin(req: Request, res: Response) {
@@ -151,5 +153,24 @@ export class AdminController {
       search || undefined,
     )
     res.json(data)
+  }
+
+  async assignQuoteDirect(req: Request, res: Response) {
+    const quoteId  = String(req.params.id)
+    const driverId = req.body?.driverId
+
+    if (!driverId || typeof driverId !== 'string') {
+      res.status(400).json({ error: 'driverId é obrigatório' })
+      return
+    }
+
+    const data = await quoteService.assignDirect(quoteId, driverId)
+    res.status(201).json(data)
+  }
+
+  async assignQuoteOpen(req: Request, res: Response) {
+    const quoteId = String(req.params.id)
+    const data = await quoteService.assignOpen(quoteId)
+    res.status(201).json(data)
   }
 }

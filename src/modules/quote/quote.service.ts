@@ -2,7 +2,11 @@ import { prisma } from '../../common/config/prisma'
 import { AppError } from '../../common/middlewares/error.middleware'
 import { getPaginationParams, buildPaginationMeta } from '../../common/utils/pagination'
 import { getRouteDistance } from '../../common/utils/geo'
+import { generateSecureToken } from '../../common/utils/otp'
+import { env } from '../../common/config/env'
 import type { CreateQuoteInput, CreateGuestQuoteInput, RespondQuoteInput, PreviewQuoteInput } from './quote.schema'
+
+const ASSIGN_EXPIRY_HOURS = 24
 
 const QUOTE_EXPIRY_HOURS = 48
 
@@ -269,5 +273,185 @@ export class QuoteService {
     if (quote.passengerId !== passengerId) throw new AppError(403, 'Você não tem acesso a este orçamento')
 
     return prisma.quote.update({ where: { id: quoteId }, data: { status: 'REJECTED' } })
+  }
+
+  // ── Admin: encaminhar para motorista específico ──────────────────────────
+  async assignDirect(quoteId: string, driverId: string) {
+    const quote = await prisma.quote.findUnique({ where: { id: quoteId } })
+    if (!quote) throw new AppError(404, 'Orçamento não encontrado')
+    if (!['OPEN', 'RESPONDED'].includes(quote.status)) {
+      throw new AppError(400, 'Este orçamento não pode ser encaminhado (status inválido)')
+    }
+
+    const driver = await prisma.driverProfile.findUnique({
+      where: { id: driverId },
+      include: { user: { select: { id: true, name: true } } },
+    })
+    if (!driver) throw new AppError(404, 'Motorista não encontrado')
+    if (!driver.isApproved) throw new AppError(400, 'Motorista não está aprovado')
+
+    const settings = await prisma.settings.findUnique({ where: { id: 1 } })
+    const commissionRate = Number(settings?.commissionRate ?? 0.1)
+    const totalPrice = Number(quote.responsePrice ?? 0) * (1 + commissionRate)
+
+    const [updatedQuote, trip] = await prisma.$transaction([
+      prisma.quote.update({
+        where: { id: quoteId },
+        data: {
+          status: 'ASSIGNED_DIRECT',
+          driverProfileId: driverId,
+          assignToken: null,
+          assignExpiresAt: null,
+        },
+      }),
+      prisma.trip.create({
+        data: {
+          passengerId:        quote.passengerId!,
+          driverProfileId:    driverId,
+          quoteId,
+          originAddress:      quote.originAddress,
+          destinationAddress: quote.destinationAddress,
+          scheduledAt:        quote.scheduledAt,
+          totalPrice:         totalPrice || 0,
+          notes:              quote.notes,
+          status:             'PENDING',
+        },
+      }),
+    ])
+
+    return { quote: updatedQuote, trip }
+  }
+
+  // ── Admin: encaminhar com link aberto (primeiro que aceitar fica) ────────
+  async assignOpen(quoteId: string) {
+    const quote = await prisma.quote.findUnique({ where: { id: quoteId } })
+    if (!quote) throw new AppError(404, 'Orçamento não encontrado')
+    if (!['OPEN', 'RESPONDED'].includes(quote.status)) {
+      throw new AppError(400, 'Este orçamento não pode ser encaminhado (status inválido)')
+    }
+
+    const token = generateSecureToken()
+    const assignExpiresAt = new Date(Date.now() + ASSIGN_EXPIRY_HOURS * 60 * 60 * 1000)
+
+    const updatedQuote = await prisma.quote.update({
+      where: { id: quoteId },
+      data: { status: 'ASSIGNED_OPEN', assignToken: token, assignExpiresAt },
+    })
+
+    const claimUrl = `${env.CORS_ORIGIN}/driver/claim-trip/${token}`
+    return { quote: updatedQuote, claimUrl, expiresAt: assignExpiresAt }
+  }
+
+  // ── Motorista: aceitar link aberto (first-come-first-served) ────────────
+  async claimOpenTrip(token: string, driverUserId: string) {
+    const profile = await prisma.driverProfile.findUnique({
+      where: { userId: driverUserId },
+      include: { user: { select: { name: true } } },
+    })
+    if (!profile) throw new AppError(404, 'Perfil de motorista não encontrado')
+    if (!profile.isApproved) throw new AppError(403, 'Seu perfil ainda não foi aprovado')
+
+    // Transação atômica: garante que só um motorista consegue
+    const result = await prisma.$transaction(async (tx) => {
+      const quote = await tx.quote.findUnique({ where: { assignToken: token } })
+
+      if (!quote) throw new AppError(404, 'Link inválido ou já utilizado')
+      if (quote.status !== 'ASSIGNED_OPEN') throw new AppError(409, 'Esta viagem já foi aceita por outro motorista')
+      if (quote.assignExpiresAt && quote.assignExpiresAt < new Date()) {
+        throw new AppError(410, 'Este link expirou. Solicite um novo ao administrador.')
+      }
+
+      const settings = await tx.settings.findUnique({ where: { id: 1 } })
+      const commissionRate = Number(settings?.commissionRate ?? 0.1)
+      const totalPrice = Number(quote.responsePrice ?? 0) * (1 + commissionRate)
+
+      const [updatedQuote, trip] = await Promise.all([
+        tx.quote.update({
+          where: { id: quote.id },
+          data: {
+            status: 'ACCEPTED',
+            driverProfileId: profile.id,
+            assignToken: null,
+            assignExpiresAt: null,
+          },
+        }),
+        tx.trip.create({
+          data: {
+            passengerId:        quote.passengerId!,
+            driverProfileId:    profile.id,
+            quoteId:            quote.id,
+            originAddress:      quote.originAddress,
+            destinationAddress: quote.destinationAddress,
+            scheduledAt:        quote.scheduledAt,
+            totalPrice:         totalPrice || 0,
+            notes:              quote.notes,
+            status:             'CONFIRMED',
+          },
+        }),
+      ])
+
+      return { quote: updatedQuote, trip }
+    })
+
+    return result
+  }
+
+  // ── Motorista: prévia do link aberto antes de aceitar ───────────────────
+  async previewOpenTrip(token: string) {
+    const quote = await prisma.quote.findUnique({
+      where: { assignToken: token },
+      include: {
+        passenger: { select: { name: true } },
+      },
+    })
+
+    if (!quote) throw new AppError(404, 'Link inválido ou já utilizado')
+    if (quote.status !== 'ASSIGNED_OPEN') throw new AppError(409, 'Esta viagem já foi aceita por outro motorista')
+    if (quote.assignExpiresAt && quote.assignExpiresAt < new Date()) {
+      throw new AppError(410, 'Este link expirou. Solicite um novo ao administrador.')
+    }
+
+    return {
+      originAddress:      quote.originAddress,
+      destinationAddress: quote.destinationAddress,
+      scheduledAt:        quote.scheduledAt,
+      notes:              quote.notes,
+      responsePrice:      Number(quote.responsePrice ?? 0),
+      passengerName:      (quote.passenger as { name: string } | null)?.name ?? 'Passageiro',
+      expiresAt:          quote.assignExpiresAt,
+    }
+  }
+
+  // ── Admin: listar orçamentos com filtros ─────────────────────────────────
+  async listAllQuotes(params: { status?: string; page?: number; limit?: number }) {
+    const page  = params.page  ?? 1
+    const limit = params.limit ?? 20
+    const { take, skip } = getPaginationParams(page, limit)
+
+    const where: Record<string, unknown> = {}
+    if (params.status) where.status = params.status
+
+    const [quotes, total] = await Promise.all([
+      prisma.quote.findMany({
+        where,
+        include: {
+          passenger: { select: { id: true, name: true, email: true, phone: true } },
+          driverProfile: {
+            select: {
+              id: true,
+              vehicleMake: true,
+              vehicleModel: true,
+              user: { select: { name: true } },
+            },
+          },
+        },
+        orderBy: { createdAt: 'desc' },
+        take,
+        skip,
+      }),
+      prisma.quote.count({ where }),
+    ])
+
+    return { quotes, meta: buildPaginationMeta(total, page, take) }
   }
 }

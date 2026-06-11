@@ -54,7 +54,7 @@ export const forgotPasswordSchema = z.object({
 })
 
 export const resetPasswordSchema = z.object({
-  token: z.string().min(1, 'Token é obrigatório'),
+  token: z.string().length(64, 'Token inválido').regex(/^[a-f0-9]{64}$/, 'Token inválido'),
   password: z.string()
     .min(8, 'Senha deve ter pelo menos 8 caracteres')
     .regex(/[A-Z]/, 'Senha deve conter uma letra maiúscula')

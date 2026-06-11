@@ -57,6 +57,7 @@ export class EventService {
     link?: string
     featured?: boolean
     active?: boolean
+    soldOut?: boolean
     order?: number
   }) {
     const duplicate = await prisma.event.findFirst({
@@ -84,6 +85,7 @@ export class EventService {
       link?: string
       featured?: boolean
       active?: boolean
+      soldOut?: boolean
       order?: number
     },
   ) {
