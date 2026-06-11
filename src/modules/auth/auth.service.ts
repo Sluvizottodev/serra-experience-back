@@ -5,6 +5,8 @@ import { AppError } from '../../common/middlewares/error.middleware'
 import { signAccessToken, signRefreshToken, verifyRefreshToken } from '../../common/utils/jwt'
 import { generateOtp, generateSecureToken } from '../../common/utils/otp'
 import { encrypt } from '../../common/utils/crypto'
+import { notifyAdmins } from '../../common/utils/notify-admins'
+import { tplNovoMotorista } from '../../common/utils/email.templates'
 import type { RegisterInput, LoginInput, VerifyOtpInput, ForgotPasswordInput, ResetPasswordInput } from './auth.schema'
 
 const OTP_EXPIRY_MINUTES = 10
@@ -27,6 +29,12 @@ export class AuthService {
     })
 
     await this.sendOtp(user.id, user.email)
+
+    if (data.role === 'DRIVER') {
+      const { subject, html } = tplNovoMotorista({ driverName: user.name, driverEmail: user.email, registeredAt: user.createdAt })
+      notifyAdmins(subject, html).catch(() => {})
+    }
+
     return { message: 'Conta criada. Verifique seu e-mail para confirmar.' }
   }
 
@@ -184,12 +192,27 @@ export class AuthService {
 
   async forgotPassword(data: ForgotPasswordInput) {
     const user = await prisma.user.findUnique({ where: { email: data.email } })
-    if (!user) return { message: 'Se o e-mail existir, você receberá as instruções.' }
+    if (!user?.isVerified) return { message: 'Se o e-mail existir, você receberá as instruções.' }
+
+    const existing = await prisma.otp.findMany({ where: { userId: user.id } })
+    const resetTokens = existing.filter(o => o.code.length === 64)
+
+    const lastReset = resetTokens.at(-1)
+    if (lastReset) {
+      const secondsSince = (Date.now() - lastReset.createdAt.getTime()) / 1000
+      if (secondsSince < 60) {
+        const wait = Math.ceil(60 - secondsSince)
+        throw new AppError(429, `Aguarde ${wait} segundos antes de solicitar um novo link`)
+      }
+    }
+
+    // Remove apenas os tokens de reset anteriores — OTPs de verificação intocados
+    if (resetTokens.length > 0) {
+      await prisma.otp.deleteMany({ where: { id: { in: resetTokens.map(o => o.id) } } })
+    }
 
     const token = generateSecureToken()
     const expiresAt = new Date(Date.now() + 60 * 60 * 1000)
-
-    await prisma.otp.deleteMany({ where: { userId: user.id } })
     await prisma.otp.create({ data: { code: token, userId: user.id, expiresAt } })
 
     const resetUrl = `${process.env.CORS_ORIGIN}/reset-password?token=${token}`
@@ -204,15 +227,18 @@ export class AuthService {
 
   async resetPassword(data: ResetPasswordInput) {
     const otp = await prisma.otp.findFirst({
-      where: { code: data.token },
-      include: { user: true },
+      where: { code: data.token, expiresAt: { gt: new Date() } },
     })
 
-    if (!otp || otp.expiresAt < new Date()) throw new AppError(400, 'Link de redefinição inválido ou expirado. Solicite um novo.')
+    if (!otp) throw new AppError(400, 'Link de redefinição inválido ou expirado. Solicite um novo.')
 
     const hashed = await bcrypt.hash(data.password, 12)
-    await prisma.user.update({ where: { id: otp.userId }, data: { password: hashed } })
-    await prisma.otp.deleteMany({ where: { userId: otp.userId } })
+
+    await prisma.$transaction([
+      prisma.user.update({ where: { id: otp.userId }, data: { password: hashed } }),
+      prisma.otp.deleteMany({ where: { userId: otp.userId } }),
+      prisma.refreshToken.deleteMany({ where: { userId: otp.userId } }),
+    ])
 
     return { message: 'Senha redefinida com sucesso' }
   }

@@ -39,6 +39,8 @@ enum PaymentStatus {
 enum QuoteStatus {
   OPEN
   RESPONDED
+  ASSIGNED_OPEN
+  ASSIGNED_DIRECT
   ACCEPTED
   REJECTED
   EXPIRED
@@ -238,6 +240,8 @@ model Quote {
   status             QuoteStatus    @default(OPEN)
   responsePrice      Decimal?       @db.Decimal(10, 2)
   responseNote       String?
+  assignToken        String?        @unique
+  assignExpiresAt    DateTime?
   expiresAt          DateTime
   createdAt          DateTime       @default(now())
   updatedAt          DateTime       @updatedAt
@@ -404,6 +408,7 @@ model Event {
   link          String?
   featured      Boolean  @default(false)
   active        Boolean  @default(true)
+  soldOut       Boolean  @default(false) @map("sold_out")
   order         Int      @default(0)
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt

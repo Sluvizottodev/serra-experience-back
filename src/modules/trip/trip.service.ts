@@ -1,6 +1,10 @@
 import { prisma } from '../../common/config/prisma'
 import { AppError } from '../../common/middlewares/error.middleware'
 import { getPaginationParams, buildPaginationMeta } from '../../common/utils/pagination'
+import { sendMail } from '../../common/config/mailer'
+import { env } from '../../common/config/env'
+import { notifyAdmins } from '../../common/utils/notify-admins'
+import { tplViagemCancelada, tplNovaAvaliacao } from '../../common/utils/email.templates'
 import type { UpdateTripStatusInput, CancelTripInput, ReviewInput } from './trip.schema'
 
 const tripInclude = {
@@ -57,16 +61,24 @@ export class TripService {
   }
 
   async updateTripStatus(tripId: string, userId: string, data: UpdateTripStatusInput) {
-    const profile = await prisma.driverProfile.findUnique({ where: { userId } })
+    const profile = await prisma.driverProfile.findUnique({
+      where: { userId },
+      include: { user: { select: { name: true } } },
+    })
     if (!profile) throw new AppError(404, 'Perfil de motorista não encontrado')
 
-    const trip = await prisma.trip.findUnique({ where: { id: tripId } })
+    const trip = await prisma.trip.findUnique({
+      where: { id: tripId },
+      include: {
+        passenger: { select: { name: true, email: true } },
+      },
+    })
     if (!trip) throw new AppError(404, 'Viagem não encontrada')
     if (trip.driverProfileId !== profile.id) throw new AppError(403, 'Acesso negado')
 
     const validTransitions: Record<string, string[]> = {
-      PENDING: ['CONFIRMED'],
-      CONFIRMED: ['IN_PROGRESS'],
+      PENDING:     ['CONFIRMED', 'CANCELLED'],
+      CONFIRMED:   ['IN_PROGRESS'],
       IN_PROGRESS: ['COMPLETED'],
     }
 
@@ -74,7 +86,35 @@ export class TripService {
       throw new AppError(400, `Transição inválida: ${trip.status} → ${data.status}`)
     }
 
-    const updateData: Record<string, unknown> = { status: data.status }
+    // Motorista recusou viagem encaminhada → notificar admin por email
+    if (data.status === 'CANCELLED' && trip.status === 'PENDING') {
+      const updatedTrip = await prisma.$transaction(async (tx) => {
+        const cancelled = await tx.trip.update({
+          where: { id: tripId },
+          data: {
+            status: 'CANCELLED',
+            cancelledAt: new Date(),
+            cancelReason: data.cancelReason ?? 'Recusado pelo motorista',
+          },
+        })
+
+        // Volta o Quote para OPEN para que o admin possa redirecionar
+        if (trip.quoteId) {
+          await tx.quote.update({
+            where: { id: trip.quoteId },
+            data: { status: 'OPEN', driverProfileId: null, assignToken: null, assignExpiresAt: null },
+          })
+        }
+
+        return cancelled
+      })
+
+      // Email assíncrono para o admin — não bloqueia a resposta
+      this.notifyAdminOfRejection(trip, profile.user.name, data.cancelReason).catch(() => {})
+
+      return updatedTrip
+    }
+
     if (data.status === 'COMPLETED') {
       await prisma.driverProfile.update({
         where: { id: profile.id },
@@ -82,11 +122,50 @@ export class TripService {
       })
     }
 
-    return prisma.trip.update({ where: { id: tripId }, data: updateData })
+    return prisma.trip.update({ where: { id: tripId }, data: { status: data.status } })
+  }
+
+  private async notifyAdminOfRejection(
+    trip: { id: string; originAddress: string; destinationAddress: string; scheduledAt: Date; passenger: { name: string } },
+    driverName: string,
+    reason?: string,
+  ) {
+    const admin = await prisma.user.findFirst({ where: { role: 'ADMIN' } })
+    if (!admin) return
+
+    const adminUrl = `${env.CORS_ORIGIN}/admin/quotes`
+    const scheduled = new Date(trip.scheduledAt).toLocaleString('pt-BR', {
+      dateStyle: 'short', timeStyle: 'short',
+    } as Intl.DateTimeFormatOptions)
+
+    await sendMail(
+      admin.email,
+      'Viagem recusada — ação necessária',
+      `
+        <h2 style="color:#a98549">Viagem recusada pelo motorista</h2>
+        <p><strong>Motorista:</strong> ${driverName}</p>
+        <p><strong>Passageiro:</strong> ${trip.passenger.name}</p>
+        <p><strong>Rota:</strong> ${trip.originAddress} → ${trip.destinationAddress}</p>
+        <p><strong>Horário agendado:</strong> ${scheduled}</p>
+        ${reason ? `<p><strong>Motivo:</strong> ${reason}</p>` : ''}
+        <p style="margin-top:20px">
+          <a href="${adminUrl}" style="background:#a98549;color:#fff;padding:10px 20px;border-radius:6px;text-decoration:none">
+            Gerenciar orçamentos
+          </a>
+        </p>
+        <p style="color:#888;font-size:12px;margin-top:16px">Serra Experience — Painel Administrativo</p>
+      `
+    )
   }
 
   async cancelTrip(tripId: string, userId: string, role: string, data: CancelTripInput) {
-    const trip = await prisma.trip.findUnique({ where: { id: tripId }, include: { driverProfile: { include: { user: true } } } })
+    const trip = await prisma.trip.findUnique({
+      where: { id: tripId },
+      include: {
+        passenger: { select: { name: true } },
+        driverProfile: { include: { user: { select: { id: true, name: true } } } },
+      },
+    })
     if (!trip) throw new AppError(404, 'Viagem não encontrada')
 
     const isPassenger = trip.passengerId === userId
@@ -96,6 +175,11 @@ export class TripService {
     if (['COMPLETED', 'CANCELLED'].includes(trip.status)) {
       throw new AppError(400, 'Esta viagem não pode ser cancelada')
     }
+
+    let cancelledBy: 'PASSENGER' | 'DRIVER' | 'ADMIN'
+    if (role === 'ADMIN') cancelledBy = 'ADMIN'
+    else if (isPassenger) cancelledBy = 'PASSENGER'
+    else cancelledBy = 'DRIVER'
 
     const updateData: Record<string, unknown> = {
       status: 'CANCELLED',
@@ -107,11 +191,32 @@ export class TripService {
       updateData.paymentStatus = 'REFUNDED'
     }
 
-    return prisma.trip.update({ where: { id: tripId }, data: updateData })
+    const updated = await prisma.trip.update({ where: { id: tripId }, data: updateData })
+
+    const { subject, html } = tplViagemCancelada({
+      tripId,
+      cancelledBy,
+      passengerName: trip.passenger?.name ?? 'Passageiro',
+      driverName: trip.driverProfile.user.name,
+      origin: trip.originAddress,
+      destination: trip.destinationAddress,
+      scheduledAt: trip.scheduledAt,
+      cancelReason: data.cancelReason ?? null,
+      hadPayment: trip.paymentStatus === 'PAID',
+    })
+    notifyAdmins(subject, html).catch(() => {})
+
+    return updated
   }
 
   async reviewTrip(tripId: string, passengerId: string, data: ReviewInput) {
-    const trip = await prisma.trip.findUnique({ where: { id: tripId } })
+    const trip = await prisma.trip.findUnique({
+      where: { id: tripId },
+      include: {
+        passenger: { select: { name: true } },
+        driverProfile: { include: { user: { select: { name: true, email: true } } } },
+      },
+    })
     if (!trip) throw new AppError(404, 'Viagem não encontrada')
     if (trip.passengerId !== passengerId) throw new AppError(403, 'Acesso negado')
     if (trip.status !== 'COMPLETED') throw new AppError(400, 'Apenas viagens concluídas podem ser avaliadas')
@@ -129,16 +234,25 @@ export class TripService {
       },
     })
 
-    // Recalculate driver rating
-    const reviews = await prisma.review.aggregate({
+    const agg = await prisma.review.aggregate({
       where: { driverProfileId: trip.driverProfileId },
       _avg: { rating: true },
     })
 
+    const newAverage = agg._avg.rating || 0
     await prisma.driverProfile.update({
       where: { id: trip.driverProfileId },
-      data: { rating: reviews._avg.rating || 0 },
+      data: { rating: newAverage },
     })
+
+    const { subject, html } = tplNovaAvaliacao({
+      driverName: trip.driverProfile.user.name,
+      passengerName: trip.passenger?.name ?? 'Passageiro',
+      rating: data.rating,
+      comment: data.comment ?? null,
+      newAverage,
+    })
+    sendMail(trip.driverProfile.user.email, subject, html).catch(() => {})
 
     return review
   }

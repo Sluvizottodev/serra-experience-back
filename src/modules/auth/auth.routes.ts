@@ -26,6 +26,12 @@ const resendOtpLimiter = rateLimit({
   message: { error: 'Limite de reenvios atingido. Tente novamente em 15 minutos.' },
 })
 
+const forgotPasswordLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  max: 5,
+  message: { error: 'Muitas tentativas de recuperação. Tente novamente em 1 hora.' },
+})
+
 const wrap = (fn: Function) => (req: any, res: any, next: any) =>
   Promise.resolve(fn.call(controller, req, res, next)).catch((err: any) => {
     const status = err.statusCode ?? 400
@@ -38,7 +44,7 @@ router.post('/verify-otp', authLimiter, validate(verifyOtpSchema), wrap(controll
 router.post('/resend-otp', resendOtpLimiter, validate(resendOtpSchema), wrap(controller.resendOtp))
 router.post('/refresh-token', wrap(controller.refreshToken))
 router.post('/logout', wrap(controller.logout))
-router.post('/forgot-password', authLimiter, validate(forgotPasswordSchema), wrap(controller.forgotPassword))
+router.post('/forgot-password', forgotPasswordLimiter, validate(forgotPasswordSchema), wrap(controller.forgotPassword))
 router.post('/reset-password', authLimiter, validate(resetPasswordSchema), wrap(controller.resetPassword))
 
 export { router as authRoutes }

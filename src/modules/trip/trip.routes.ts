@@ -15,6 +15,10 @@ const wrap = (fn: Function) => (req: any, res: any, next: any) =>
 
 router.use(isAuthenticated)
 
+// Token endpoints devem vir antes de /:id para não serem capturados pelo param genérico
+router.get('/preview/:token',  isDriver, wrap(controller.previewOpenTrip))
+router.post('/claim/:token',   isDriver, wrap(controller.claimOpenTrip))
+
 router.get('/', wrap(controller.getMyTrips))
 router.get('/:id', wrap(controller.getTrip))
 router.put('/:id/status', isDriver, validate(updateTripStatusSchema), wrap(controller.updateTripStatus))

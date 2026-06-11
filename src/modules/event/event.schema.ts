@@ -16,6 +16,7 @@ export const createEventSchema = z.object({
   link:        optionalUrl,
   featured:    z.boolean().optional().default(false),
   active:      z.boolean().optional().default(true),
+  soldOut:     z.boolean().optional().default(false),
   order:       z.number().int('Ordem deve ser inteiro').min(0).max(999).optional().default(0),
 })
 

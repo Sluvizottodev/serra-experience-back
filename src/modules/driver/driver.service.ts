@@ -2,6 +2,8 @@ import { prisma } from '../../common/config/prisma'
 import { cloudinary } from '../../common/config/cloudinary'
 import { AppError } from '../../common/middlewares/error.middleware'
 import { getPaginationParams, buildPaginationMeta } from '../../common/utils/pagination'
+import { notifyAdmins } from '../../common/utils/notify-admins'
+import { tplVeiculoEmRevisao } from '../../common/utils/email.templates'
 import type { CreateDriverProfileInput, UpdateDriverProfileInput, AvailabilityInput } from './driver.schema'
 
 const VEHICLE_FIELDS = [
@@ -155,11 +157,29 @@ export class DriverService {
     const vehicleFieldChanged = VEHICLE_FIELDS.some(
       f => f in data && (data as any)[f] !== undefined
     )
-    if (profile.isApproved && vehicleFieldChanged && profile.vehicleStatus === 'APPROVED') {
+    const goingToReview = profile.isApproved && vehicleFieldChanged && profile.vehicleStatus === 'APPROVED'
+    if (goingToReview) {
       updateData.vehicleStatus = 'REVIEW_PENDING'
     }
 
-    return prisma.driverProfile.update({ where: { userId }, data: updateData as any })
+    const updated = await prisma.driverProfile.update({
+      where: { userId },
+      data: updateData as any,
+      include: { user: { select: { name: true, email: true } } },
+    })
+
+    if (goingToReview) {
+      const changedFields = VEHICLE_FIELDS.filter(f => f in data && (data as any)[f] !== undefined)
+      const { subject, html } = tplVeiculoEmRevisao({
+        driverName: updated.user.name,
+        driverEmail: updated.user.email,
+        driverProfileId: updated.id,
+        changedFields,
+      })
+      notifyAdmins(subject, html).catch(() => {})
+    }
+
+    return updated
   }
 
   async uploadVehiclePhoto(userId: string, fileBuffer: Buffer) {

@@ -2,6 +2,8 @@ import { prisma } from '../../common/config/prisma'
 import { cloudinary } from '../../common/config/cloudinary'
 import { AppError } from '../../common/middlewares/error.middleware'
 import { encrypt } from '../../common/utils/crypto'
+import { notifyAdmins } from '../../common/utils/notify-admins'
+import { tplDocumentoEnviado } from '../../common/utils/email.templates'
 import type { UpdateUserInput } from './user.schema'
 
 export class UserService {
@@ -78,11 +80,17 @@ export class UserService {
   }
 
   async uploadIdDocument(userId: string, fileBuffer: Buffer) {
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { name: true, email: true },
+    })
+    if (!user) throw new AppError(404, 'Usuário não encontrado')
+
     const result = await new Promise<{ secure_url: string }>((resolve, reject) => {
       const stream = cloudinary.uploader.upload_stream(
         { folder: 'viagem-motorista/documents', resource_type: 'auto' },
         (err, res) => {
-          if (err || !res) return reject(err)
+          if (err || !res) return reject(new Error(err?.message ?? 'Upload failed'))
           resolve(res as { secure_url: string })
         }
       )
@@ -90,6 +98,10 @@ export class UserService {
     })
 
     await prisma.user.update({ where: { id: userId }, data: { idStatus: 'PENDING' } })
+
+    const { subject, html } = tplDocumentoEnviado({ userName: user.name, userEmail: user.email, userId })
+    notifyAdmins(subject, html).catch(() => {})
+
     return { message: 'Documento enviado. Aguardando aprovação.', url: result.secure_url }
   }
 }

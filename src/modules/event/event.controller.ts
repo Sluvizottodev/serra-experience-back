@@ -25,7 +25,7 @@ export class EventController {
   }
 
   async create(req: Request, res: Response) {
-    const { title, description, date, endDate, location, link, featured, active, order } = req.body
+    const { title, description, date, endDate, location, link, featured, active, soldOut, order } = req.body
     if (!title?.trim()) {
       res.status(400).json({ error: 'Título é obrigatório' })
       return
@@ -39,13 +39,14 @@ export class EventController {
       link: link?.trim(),
       featured: featured === true || featured === 'true',
       active: active !== false && active !== 'false',
+      soldOut: soldOut === true || soldOut === 'true',
       order: Number(order) || 0,
     })
     res.status(201).json(event)
   }
 
   async update(req: Request, res: Response) {
-    const { title, description, date, endDate, location, link, featured, active, order } = req.body
+    const { title, description, date, endDate, location, link, featured, active, soldOut, order } = req.body
     const data: Record<string, unknown> = {}
     if (title !== undefined) data.title = title.trim()
     if (description !== undefined) data.description = description?.trim() || null
@@ -55,6 +56,7 @@ export class EventController {
     if (link !== undefined) data.link = link?.trim() || null
     if (featured !== undefined) data.featured = featured === true || featured === 'true'
     if (active !== undefined) data.active = active === true || active === 'true'
+    if (soldOut !== undefined) data.soldOut = soldOut === true || soldOut === 'true'
     if (order !== undefined) data.order = Number(order) || 0
     const event = await service.updateEvent(String(req.params.id), data)
     res.json(event)

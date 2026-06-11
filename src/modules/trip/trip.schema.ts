@@ -1,7 +1,8 @@
 import { z } from 'zod'
 
 export const updateTripStatusSchema = z.object({
-  status: z.enum(['CONFIRMED', 'IN_PROGRESS', 'COMPLETED']),
+  status: z.enum(['CONFIRMED', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED']),
+  cancelReason: z.string().min(5).max(500).optional(),
 })
 
 export const cancelTripSchema = z.object({

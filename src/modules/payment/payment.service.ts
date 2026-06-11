@@ -4,6 +4,8 @@ import { prisma } from '../../common/config/prisma'
 import { env } from '../../common/config/env'
 import { PaymentLoggerService } from './payment.logger'
 import { decrypt } from '../../common/utils/crypto'
+import { notifyAdmins } from '../../common/utils/notify-admins'
+import { tplFalhaPagamento } from '../../common/utils/email.templates'
 
 const logger = new PaymentLoggerService()
 const MAX_RETRIES = 3
@@ -130,12 +132,7 @@ export class PaymentService {
 
   async handleWebhook(body: Record<string, unknown>, sellerToken: string | undefined) {
     if (!env.PICPAY_SELLER_TOKEN || sellerToken !== env.PICPAY_SELLER_TOKEN) {
-      await logger.log({
-        operationType: 'WEBHOOK',
-        status: '401',
-        severity: 'WARN',
-        requestPayload: { reason: 'invalid_seller_token' },
-      })
+      await logger.log({ operationType: 'WEBHOOK', status: '401', severity: 'WARN', requestPayload: { reason: 'invalid_seller_token' } })
       throw Object.assign(new Error('Unauthorized'), { statusCode: 401 })
     }
 
@@ -151,38 +148,54 @@ export class PaymentService {
     })
 
     if (status === 'paid') {
-      const payment = await prisma.payment.findUnique({
-        where: { externalTransactionId: String(referenceId) },
-      })
-
-      if (payment) {
-        const expectedAmount = Number(payment.amount)
-        const receivedAmount = typeof body.amount === 'number' ? body.amount : null
-
-        if (receivedAmount !== null && Math.abs(receivedAmount - expectedAmount) > 0.01) {
-          await logger.log({
-            operationType: 'WEBHOOK',
-            transactionId: String(referenceId),
-            status: 'AMOUNT_MISMATCH',
-            severity: 'ERROR',
-            requestPayload: { expected: expectedAmount, received: receivedAmount },
-          })
-          throw Object.assign(new Error('Payment amount mismatch'), { statusCode: 400 })
-        }
-
-        await prisma.$transaction([
-          prisma.payment.update({
-            where: { id: payment.id },
-            data: { status: 'PAID', paidAt: new Date() },
-          }),
-          prisma.trip.update({
-            where: { id: payment.tripId },
-            data: { paymentStatus: 'PAID', status: 'CONFIRMED' },
-          }),
-        ])
-      }
+      await this.handlePaidWebhook(String(referenceId), body.amount)
+    } else if (status === 'failed' || status === 'chargeback') {
+      await this.handleFailedWebhook(String(referenceId), String(status))
     }
 
     return { received: true }
+  }
+
+  private async handlePaidWebhook(referenceId: string, rawAmount: unknown) {
+    const payment = await prisma.payment.findUnique({ where: { externalTransactionId: referenceId } })
+    if (!payment) return
+
+    const expectedAmount = Number(payment.amount)
+    const receivedAmount = typeof rawAmount === 'number' ? rawAmount : null
+
+    if (receivedAmount !== null && Math.abs(receivedAmount - expectedAmount) > 0.01) {
+      await logger.log({
+        operationType: 'WEBHOOK',
+        transactionId: referenceId,
+        status: 'AMOUNT_MISMATCH',
+        severity: 'ERROR',
+        requestPayload: { expected: expectedAmount, received: receivedAmount },
+      })
+      const { subject, html } = tplFalhaPagamento({
+        referenceId,
+        tripId: payment.tripId,
+        reason: 'Valor recebido diverge do valor esperado (possível fraude)',
+        expectedAmount,
+        receivedAmount,
+      })
+      notifyAdmins(subject, html).catch(() => {})
+      throw Object.assign(new Error('Payment amount mismatch'), { statusCode: 400 })
+    }
+
+    await prisma.$transaction([
+      prisma.payment.update({ where: { id: payment.id }, data: { status: 'PAID', paidAt: new Date() } }),
+      prisma.trip.update({ where: { id: payment.tripId }, data: { paymentStatus: 'PAID', status: 'CONFIRMED' } }),
+    ])
+  }
+
+  private async handleFailedWebhook(referenceId: string, status: string) {
+    const payment = await prisma.payment.findUnique({ where: { externalTransactionId: referenceId } })
+    if (!payment) return
+
+    await prisma.payment.update({ where: { id: payment.id }, data: { status: 'FAILED' } })
+
+    const reason = status === 'chargeback' ? 'Chargeback registrado pelo PicPay' : 'Pagamento recusado pelo PicPay'
+    const { subject, html } = tplFalhaPagamento({ referenceId, tripId: payment.tripId, reason })
+    notifyAdmins(subject, html).catch(() => {})
   }
 }

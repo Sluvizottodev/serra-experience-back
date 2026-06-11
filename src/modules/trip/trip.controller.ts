@@ -1,8 +1,10 @@
 import { Response } from 'express'
 import { TripService } from './trip.service'
+import { QuoteService } from '../quote/quote.service'
 import { AuthRequest } from '../../common/types'
 
 const service = new TripService()
+const quoteService = new QuoteService()
 
 export class TripController {
   async getMyTrips(req: AuthRequest, res: Response) {
@@ -30,5 +32,17 @@ export class TripController {
   async reviewTrip(req: AuthRequest, res: Response) {
     const data = await service.reviewTrip(String(req.params.id), req.user!.id, req.body)
     res.json(data)
+  }
+
+  async previewOpenTrip(req: AuthRequest, res: Response) {
+    const token = String(req.params.token)
+    const data = await quoteService.previewOpenTrip(token)
+    res.json(data)
+  }
+
+  async claimOpenTrip(req: AuthRequest, res: Response) {
+    const token = String(req.params.token)
+    const data = await quoteService.claimOpenTrip(token, req.user!.id)
+    res.status(201).json(data)
   }
 }
