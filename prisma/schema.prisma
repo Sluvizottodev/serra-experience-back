@@ -409,6 +409,7 @@ model Event {
   featured      Boolean  @default(false)
   active        Boolean  @default(true)
   soldOut       Boolean  @default(false) @map("sold_out")
+  price         Int?
   order         Int      @default(0)
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
