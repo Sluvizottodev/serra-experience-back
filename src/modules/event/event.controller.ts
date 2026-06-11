@@ -3,6 +3,12 @@ import { EventService } from './event.service'
 
 const service = new EventService()
 
+function parsePrice(value: unknown): number | null {
+  if (value == null) return null
+  const n = Number(value)
+  return Number.isNaN(n) ? null : n
+}
+
 export class EventController {
   async listPublic(_req: Request, res: Response) {
     const events = await service.listEvents(true)
@@ -37,7 +43,7 @@ export class EventController {
       endDate: endDate?.trim(),
       location: location?.trim(),
       link: link?.trim(),
-      price: price != null ? Number(price) : null,
+      price: parsePrice(price),
       featured: featured === true || featured === 'true',
       active: active !== false && active !== 'false',
       soldOut: soldOut === true || soldOut === 'true',
@@ -55,7 +61,7 @@ export class EventController {
     if (endDate !== undefined) data.endDate = endDate?.trim() || null
     if (location !== undefined) data.location = location?.trim() || null
     if (link !== undefined) data.link = link?.trim() || null
-    if (price !== undefined) data.price = price != null ? Number(price) : null
+    if (price !== undefined) data.price = parsePrice(price)
     if (featured !== undefined) data.featured = featured === true || featured === 'true'
     if (active !== undefined) data.active = active === true || active === 'true'
     if (soldOut !== undefined) data.soldOut = soldOut === true || soldOut === 'true'
