@@ -1,4 +1,4 @@
-CREATE TABLE "page_sessions" (
+CREATE TABLE IF NOT EXISTS "page_sessions" (
     "id"               TEXT NOT NULL,
     "visitorId"        TEXT NOT NULL,
     "enteredAt"        TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -8,5 +8,5 @@ CREATE TABLE "page_sessions" (
     CONSTRAINT "page_sessions_pkey" PRIMARY KEY ("id")
 );
 
-CREATE INDEX "page_sessions_visitorId_idx" ON "page_sessions"("visitorId");
-CREATE INDEX "page_sessions_enteredAt_idx" ON "page_sessions"("enteredAt");
+CREATE INDEX IF NOT EXISTS "page_sessions_visitorId_idx" ON "page_sessions"("visitorId");
+CREATE INDEX IF NOT EXISTS "page_sessions_enteredAt_idx" ON "page_sessions"("enteredAt");
