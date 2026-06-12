@@ -22,12 +22,12 @@ export const createDriverProfileSchema = z.object({
     .optional(),
   vehicleYear: z.number()
     .int('Ano deve ser um número inteiro')
-    .min(2000, 'Ano do veículo deve ser 2000 ou posterior')
-    .max(2030, 'Ano do veículo não pode ser no futuro')
+    .min(new Date().getFullYear() - 5, `Veículo deve ter no máximo 5 anos`)
+    .max(new Date().getFullYear(), 'Ano do veículo não pode ser no futuro')
     .optional(),
   vehiclePlate: z.string()
-    .regex(/^[A-Z]{3}-?\d{4}$/, 'Placa inválida (formato: ABC-1234)')
-    .transform(p => p.replace('-', '').toUpperCase())
+    .regex(/^[A-Z]{3}-?(\d{4}|\d[A-Z]\d{2})$/, 'Placa inválida (formato: ABC-1234 ou ABC-1D23)')
+    .transform(p => p.toUpperCase())
     .optional(),
   vehicleColor: z.string()
     .min(1, 'Cor do veículo é obrigatória')
