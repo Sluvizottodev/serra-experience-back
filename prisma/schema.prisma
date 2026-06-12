@@ -445,3 +445,15 @@ model Testimonial {
 
   @@map("testimonials")
 }
+
+model PageSession {
+  id              String    @id @default(uuid())
+  visitorId       String
+  enteredAt       DateTime  @default(now())
+  exitedAt        DateTime?
+  durationSeconds Int?
+
+  @@index([visitorId])
+  @@index([enteredAt])
+  @@map("page_sessions")
+}
