@@ -195,6 +195,7 @@ export class AdminService {
     whatsapp?: string
     address?: string
     commissionRate?: number
+    basePricePerKm?: number | null
     timezone?: string
     baseAddress?: string | null
     baseLat?: number | null
