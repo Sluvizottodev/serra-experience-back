@@ -211,7 +211,7 @@ model Trip {
   estimatedDistanceKm      Decimal?      @db.Decimal(10, 2)
   status                   TripStatus    @default(PENDING)
   paymentStatus            PaymentStatus @default(UNPAID)
-  totalPrice               Decimal       @db.Decimal(10, 2)
+  totalPrice               Decimal?      @db.Decimal(10, 2)
   notes                    String?
   cancelledAt              DateTime?
   cancelReason             String?
@@ -362,9 +362,10 @@ model Settings {
   phone          String?
   whatsapp       String?
   address        String?
-  commissionRate Decimal  @default(0.10) @db.Decimal(5, 4)
-  timezone       String   @default("America/Sao_Paulo")
-  baseAddress    String?
+  commissionRate  Decimal  @default(0.10) @db.Decimal(5, 4)
+  basePricePerKm  Decimal? @db.Decimal(10, 2)
+  timezone        String   @default("America/Sao_Paulo")
+  baseAddress     String?
   baseLat        Decimal? @db.Decimal(10, 8)
   baseLng        Decimal? @db.Decimal(11, 8)
   updatedAt      DateTime @updatedAt

@@ -195,28 +195,12 @@ export class QuoteService {
 
   async previewQuote(data: PreviewQuoteInput) {
     const settings = await prisma.settings.findUnique({ where: { id: 1 } })
-    const commissionRate = Number(settings?.commissionRate || 0.1)
+    const commissionRate  = Number(settings?.commissionRate  ?? 0.1)
+    const basePricePerKm  = settings?.basePricePerKm != null ? Number(settings.basePricePerKm) : null
 
-    const drivers = await prisma.driverProfile.findMany({
+    const availableDrivers = await prisma.driverProfile.count({
       where: { isApproved: true, isAvailable: true },
-      select: {
-        baseRatePerKm: true,
-        baseRatePerHour: true,
-        vehicleCapacity: true,
-        rating: true,
-      },
     })
-
-    if (drivers.length === 0) {
-      return {
-        availableDrivers: 0,
-        distanceKm: null,
-        durationMin: null,
-        estimatedRange: null,
-        commissionRate,
-        note: 'Nenhum motorista disponível no momento',
-      }
-    }
 
     // Tenta calcular distância real via Nominatim + ORS (fallback: Haversine)
     let distanceKm: number | null = null
@@ -224,46 +208,61 @@ export class QuoteService {
     let distanceMethod: 'route' | 'estimate' | null = null
     try {
       const route = await getRouteDistance(data.originAddress, data.destinationAddress)
-      distanceKm    = route.distanceKm
-      durationMin   = route.durationMin
+      distanceKm     = route.distanceKm
+      durationMin    = route.durationMin
       distanceMethod = route.method
     } catch (err) {
-      console.warn('[preview] cálculo de distância falhou:', (err as Error).message)
+      console.warn('[preview] calculo de distancia falhou:', (err as Error).message)
     }
 
-    const rates = drivers.map(d => ({
-      perKm:   Number(d.baseRatePerKm),
-      perHour: Number(d.baseRatePerHour),
-    }))
+    // Sem preço base configurado: não há estimativa de valor
+    if (!basePricePerKm || !distanceKm) {
+      return {
+        availableDrivers,
+        distanceKm,
+        durationMin,
+        distanceMethod,
+        estimatedRange: null,
+        commissionRate,
+        note: !basePricePerKm
+          ? 'Preco base por km nao configurado nas definicoes.'
+          : 'Nao foi possivel calcular a distancia para esta rota.',
+      }
+    }
 
-    const minPerKm   = Math.min(...rates.map(r => r.perKm))
-    const maxPerKm   = Math.max(...rates.map(r => r.perKm))
-    const minPerHour = Math.min(...rates.map(r => r.perHour))
-    const maxPerHour = Math.max(...rates.map(r => r.perHour))
-    const avgRating  = drivers.reduce((s, d) => s + Number(d.rating), 0) / drivers.length
+    // Avalia encargos extras dos parametros do sistema
+    const { TripParameterService } = await import('../trip-parameter/trip-parameter.service')
+    const paramService = new TripParameterService()
 
-    // Se temos distância, calcula faixa de preço estimada com comissão
-    const estimatedRange = distanceKm
-      ? {
-          minTotal: Number(((minPerKm * distanceKm) * (1 + commissionRate)).toFixed(2)),
-          maxTotal: Number(((maxPerKm * distanceKm) * (1 + commissionRate)).toFixed(2)),
-        }
-      : null
+    const hour = data.scheduledAt ? new Date(data.scheduledAt).getHours() : undefined
+    const basePrice = basePricePerKm * distanceKm
+    const evaluation = await paramService.evaluate({
+      distanceTotalKm: distanceKm,
+      basePrice,
+      departureHour: hour,
+      target: 'TRIPS',
+      isQuote: true,
+    })
+
+    const expectedNet   = basePrice + evaluation.totalExtraAmount
+    const expectedTotal = expectedNet * (1 + commissionRate)
+
+    const BUFFER = 0.15
+    const estimatedRange = {
+      minTotal: Number((expectedTotal * (1 - BUFFER)).toFixed(2)),
+      maxTotal: Number((expectedTotal * (1 + BUFFER)).toFixed(2)),
+    }
 
     return {
-      availableDrivers: drivers.length,
+      availableDrivers,
       distanceKm,
       durationMin,
       distanceMethod,
       estimatedRange,
       commissionRate,
-      rates: { minPerKm, maxPerKm, minPerHour, maxPerHour },
-      avgDriverRating: Number(avgRating.toFixed(1)),
       note: distanceMethod === 'route'
-        ? 'Estimativa baseada na distância real da rota e nas taxas dos motoristas disponíveis.'
-        : distanceMethod === 'estimate'
-          ? 'Distância estimada (rota aproximada). O valor final é proposto pelo motorista.'
-          : 'Estimativa baseada nas taxas dos motoristas. Configure OPENROUTE_API_KEY para cálculo por distância.',
+        ? 'Estimativa baseada na distancia real da rota e nos parametros do sistema.'
+        : 'Distancia estimada (rota aproximada). O valor final e definido pelo administrador.',
     }
   }
 
