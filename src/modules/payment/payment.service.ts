@@ -101,7 +101,7 @@ export class PaymentService {
       create: {
         tripId,
         externalTransactionId: referenceId,
-        amount: trip.totalPrice,
+        amount: trip.totalPrice ?? 0,
         status: 'PENDING',
         paymentUrl: result.paymentUrl,
       },
