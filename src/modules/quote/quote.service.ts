@@ -3,6 +3,7 @@ import { AppError } from '../../common/middlewares/error.middleware'
 import { getPaginationParams, buildPaginationMeta } from '../../common/utils/pagination'
 import { getRouteDistance } from '../../common/utils/geo'
 import { generateSecureToken } from '../../common/utils/otp'
+import { isLicenseExpired, LICENSE_EXPIRED_MESSAGE } from '../../common/utils/license'
 import { env } from '../../common/config/env'
 import type { CreateQuoteInput, CreateGuestQuoteInput, RespondQuoteInput, PreviewQuoteInput } from './quote.schema'
 
@@ -349,6 +350,7 @@ export class QuoteService {
     })
     if (!profile) throw new AppError(404, 'Perfil de motorista não encontrado')
     if (!profile.isApproved) throw new AppError(403, 'Seu perfil ainda não foi aprovado')
+    if (isLicenseExpired(profile.licenseExpiry)) throw new AppError(403, LICENSE_EXPIRED_MESSAGE)
 
     // Transação atômica: garante que só um motorista consegue
     const result = await prisma.$transaction(async (tx) => {

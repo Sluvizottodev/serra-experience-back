@@ -4,6 +4,7 @@ import { getPaginationParams, buildPaginationMeta } from '../../common/utils/pag
 import { sendMail } from '../../common/config/mailer'
 import { env } from '../../common/config/env'
 import { notifyAdmins } from '../../common/utils/notify-admins'
+import { isLicenseExpired, LICENSE_EXPIRED_MESSAGE } from '../../common/utils/license'
 import { tplViagemCancelada, tplNovaAvaliacao } from '../../common/utils/email.templates'
 import type { UpdateTripStatusInput, CancelTripInput, ReviewInput } from './trip.schema'
 
@@ -84,6 +85,14 @@ export class TripService {
 
     if (!validTransitions[trip.status]?.includes(data.status)) {
       throw new AppError(400, `Transição inválida: ${trip.status} → ${data.status}`)
+    }
+
+    // Motorista com CNH vencida não pode aceitar/iniciar viagem (mas pode recusar/cancelar)
+    if (
+      (data.status === 'CONFIRMED' || data.status === 'IN_PROGRESS') &&
+      isLicenseExpired(profile.licenseExpiry)
+    ) {
+      throw new AppError(403, LICENSE_EXPIRED_MESSAGE)
     }
 
     // Motorista recusou viagem encaminhada → notificar admin por email
