@@ -30,6 +30,7 @@ router.get('/trips', wrap(controller.listTrips))
 // Encaminhamento de orçamentos para motoristas
 router.post('/quotes/:id/assign-direct', wrap(controller.assignQuoteDirect))
 router.post('/quotes/:id/assign-open',   wrap(controller.assignQuoteOpen))
+router.post('/quotes/:id/revoke-open',   wrap(controller.revokeQuoteOpen))
 
 router.patch('/users/:id/lock', wrap(controller.toggleUserLock))
 router.delete('/users/:id', wrap(controller.deleteUser))

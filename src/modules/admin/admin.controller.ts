@@ -173,4 +173,10 @@ export class AdminController {
     const data = await quoteService.assignOpen(quoteId)
     res.status(201).json(data)
   }
+
+  async revokeQuoteOpen(req: Request, res: Response) {
+    const quoteId = String(req.params.id)
+    const data = await quoteService.revokeOpenLink(quoteId)
+    res.json(data)
+  }
 }

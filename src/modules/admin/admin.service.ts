@@ -200,6 +200,7 @@ export class AdminService {
     baseAddress?: string | null
     baseLat?: number | null
     baseLng?: number | null
+    assignLinkExpiryHours?: number
   }) {
     return prisma.settings.upsert({
       where: { id: 1 },
