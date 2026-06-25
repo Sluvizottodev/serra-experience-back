@@ -14,7 +14,7 @@ type DriverProfileUpdateData = { isApproved?: boolean; vehicleStatus?: VehicleSt
 const defaultSettings = {
   id: 1,
   siteName: 'Viagem com Motorista',
-  contactEmail: 'contato@viagem-motorista.com',
+  contactEmail: 'serraexperiencerj@gmail.com',
   phone: null,
   whatsapp: null,
   address: null,
