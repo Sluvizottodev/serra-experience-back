@@ -69,7 +69,16 @@ export class AdminController {
   }
 
   async updateSettings(req: Request, res: Response) {
-    const data = await service.updateSettings(req.body)
+    const body = { ...req.body }
+    if (body.assignLinkExpiryHours !== undefined) {
+      const hours = Number(body.assignLinkExpiryHours)
+      if (!Number.isFinite(hours) || hours < 1 || hours > 720) {
+        res.status(400).json({ error: 'Validade do link deve ser um número entre 1 e 720 horas' })
+        return
+      }
+      body.assignLinkExpiryHours = Math.round(hours)
+    }
+    const data = await service.updateSettings(body)
     res.json(data)
   }
 
