@@ -2,7 +2,7 @@ import bcrypt from 'bcrypt'
 import { prisma } from '../../common/config/prisma'
 import { getPaginationParams, buildPaginationMeta } from '../../common/utils/pagination'
 import { AppError } from '../../common/middlewares/error.middleware'
-import { PaymentLogStatus } from '@prisma/client'
+import { PaymentLogStatus, Prisma } from '@prisma/client'
 import { decrypt } from '../../common/utils/crypto'
 import { sendMail } from '../../common/config/mailer'
 import { tplMotoristaAprovado } from '../../common/utils/email.templates'
@@ -10,6 +10,23 @@ import { tplMotoristaAprovado } from '../../common/utils/email.templates'
 type VehicleStatus = 'PENDING' | 'APPROVED' | 'REVIEW_PENDING'
 
 type DriverProfileUpdateData = { isApproved?: boolean; vehicleStatus?: VehicleStatus }
+
+const defaultSettings = {
+  id: 1,
+  siteName: 'Viagem com Motorista',
+  contactEmail: 'contato@viagem-motorista.com',
+  phone: null,
+  whatsapp: null,
+  address: null,
+  commissionRate: new Prisma.Decimal('0.10'),
+  basePricePerKm: null,
+  timezone: 'America/Sao_Paulo',
+  baseAddress: null,
+  baseLat: null,
+  baseLng: null,
+  assignLinkExpiryHours: 24,
+  updatedAt: new Date(),
+}
 
 function delta(current: number, previous: number): number | null {
   if (previous === 0) return null
@@ -181,11 +198,14 @@ export class AdminService {
   }
 
   async getSettings() {
-    return prisma.settings.upsert({
-      where: { id: 1 },
-      create: {},
-      update: {},
-    })
+    const settings = await prisma.settings.findUnique({ where: { id: 1 } })
+    if (settings) return settings
+
+    try {
+      return await prisma.settings.create({ data: {} })
+    } catch {
+      return defaultSettings
+    }
   }
 
   async updateSettings(data: {
