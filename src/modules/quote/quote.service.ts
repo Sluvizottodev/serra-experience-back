@@ -7,7 +7,8 @@ import { isLicenseExpired, LICENSE_EXPIRED_MESSAGE } from '../../common/utils/li
 import { env } from '../../common/config/env'
 import type { CreateQuoteInput, CreateGuestQuoteInput, RespondQuoteInput, PreviewQuoteInput } from './quote.schema'
 
-const ASSIGN_EXPIRY_HOURS = 24
+// Fallback caso a configuração não esteja definida nas Settings
+const DEFAULT_ASSIGN_EXPIRY_HOURS = 24
 
 const QUOTE_EXPIRY_HOURS = 48
 
@@ -330,8 +331,11 @@ export class QuoteService {
       throw new AppError(400, 'Este orçamento não pode ser encaminhado (status inválido)')
     }
 
+    const settings = await prisma.settings.findUnique({ where: { id: 1 } })
+    const expiryHours = Number(settings?.assignLinkExpiryHours) || DEFAULT_ASSIGN_EXPIRY_HOURS
+
     const token = generateSecureToken()
-    const assignExpiresAt = new Date(Date.now() + ASSIGN_EXPIRY_HOURS * 60 * 60 * 1000)
+    const assignExpiresAt = new Date(Date.now() + expiryHours * 60 * 60 * 1000)
 
     const updatedQuote = await prisma.quote.update({
       where: { id: quoteId },
@@ -340,6 +344,25 @@ export class QuoteService {
 
     const claimUrl = `${env.CORS_ORIGIN}/driver/claim-trip/${token}`
     return { quote: updatedQuote, claimUrl, expiresAt: assignExpiresAt }
+  }
+
+  // ── Admin: revogar (bloquear) link aberto antes de ser aceito ───────────
+  async revokeOpenLink(quoteId: string) {
+    const quote = await prisma.quote.findUnique({ where: { id: quoteId } })
+    if (!quote) throw new AppError(404, 'Orçamento não encontrado')
+    if (quote.status !== 'ASSIGNED_OPEN') {
+      throw new AppError(400, 'Só é possível revogar um link aberto que ainda não foi aceito')
+    }
+
+    // Volta para RESPONDED se já havia preço respondido, senão OPEN — libera para reencaminhar
+    const nextStatus = quote.responsePrice == null ? 'OPEN' : 'RESPONDED'
+
+    const updatedQuote = await prisma.quote.update({
+      where: { id: quoteId },
+      data: { status: nextStatus, assignToken: null, assignExpiresAt: null },
+    })
+
+    return { quote: updatedQuote }
   }
 
   // ── Motorista: aceitar link aberto (first-come-first-served) ────────────

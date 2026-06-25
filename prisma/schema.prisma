@@ -368,6 +368,7 @@ model Settings {
   baseAddress     String?
   baseLat        Decimal? @db.Decimal(10, 8)
   baseLng        Decimal? @db.Decimal(11, 8)
+  assignLinkExpiryHours Int @default(24)
   updatedAt      DateTime @updatedAt
 
   @@map("settings")
