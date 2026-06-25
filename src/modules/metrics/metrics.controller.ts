@@ -1,12 +1,16 @@
 import { Request, Response } from 'express'
 import { MetricsService, InsightType } from './metrics.service'
+import { v4 as uuid } from 'uuid'
 
 const service = new MetricsService()
 
 export class MetricsController {
   async sessionStart(req: Request, res: Response) {
-    const { visitorId } = req.body as { visitorId: string }
-    if (!visitorId) return res.status(400).json({ error: 'visitorId obrigatório' })
+    const body = (req.body ?? {}) as { visitorId?: string }
+    const visitorId = typeof body.visitorId === 'string' && body.visitorId.trim()
+      ? body.visitorId.trim()
+      : uuid()
+
     const sessionId = await service.trackSessionStart(visitorId)
     res.json({ sessionId })
   }
