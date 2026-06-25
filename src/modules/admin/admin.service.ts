@@ -198,10 +198,10 @@ export class AdminService {
   }
 
   async getSettings() {
-    const settings = await prisma.settings.findUnique({ where: { id: 1 } })
-    if (settings) return settings
-
     try {
+      const settings = await prisma.settings.findUnique({ where: { id: 1 } })
+      if (settings) return settings
+
       return await prisma.settings.create({ data: {} })
     } catch {
       return defaultSettings
