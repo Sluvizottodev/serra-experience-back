@@ -102,6 +102,13 @@ enum ParameterTarget {
   BOTH
 }
 
+enum EventBookingStatus {
+  PENDING
+  CONFIRMED
+  CANCELLED
+  EXPIRED
+}
+
 model User {
   id            String   @id @default(uuid())
   name          String
@@ -127,6 +134,7 @@ model User {
   tripsAsPassenger  Trip[]         @relation("PassengerTrips")
   reviews           Review[]
   favoriteDrivers   FavoriteDriver[]
+  eventBookings     EventBooking[]
 
   @@map("users")
 }
@@ -416,7 +424,55 @@ model Event {
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
+  dateSlots EventDateSlot[]
+  bookings  EventBooking[]
+
   @@map("events")
+}
+
+model EventDateSlot {
+  id        String   @id @default(uuid())
+  eventId   String
+  event     Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  date      DateTime @db.Date
+  capacity  Int
+  createdAt DateTime @default(now())
+
+  bookingSlots EventBookingSlot[]
+
+  @@unique([eventId, date])
+  @@map("event_date_slots")
+}
+
+model EventBooking {
+  id             String             @id @default(uuid())
+  eventId        String
+  event          Event              @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  userId         String?
+  user           User?              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  guestName      String?
+  guestPhone     String?
+  passengerCount Int                @default(1)
+  status         EventBookingStatus @default(PENDING)
+  notes          String?
+  expiresAt      DateTime?
+  createdAt      DateTime           @default(now())
+  updatedAt      DateTime           @updatedAt
+
+  slots EventBookingSlot[]
+
+  @@map("event_bookings")
+}
+
+model EventBookingSlot {
+  id              String        @id @default(uuid())
+  eventBookingId  String
+  eventBooking    EventBooking  @relation(fields: [eventBookingId], references: [id], onDelete: Cascade)
+  eventDateSlotId String
+  eventDateSlot   EventDateSlot @relation(fields: [eventDateSlotId], references: [id], onDelete: Cascade)
+
+  @@unique([eventBookingId, eventDateSlotId])
+  @@map("event_booking_slots")
 }
 
 model Partner {

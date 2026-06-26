@@ -15,10 +15,12 @@ import { adminRoutes } from './modules/admin/admin.routes'
 import { reportRoutes } from './modules/report/report.routes'
 import { messageRoutes } from './modules/message/message.routes'
 import { eventRoutes } from './modules/event/event.routes'
+import { eventBookingRoutes } from './modules/event-booking/event-booking.routes'
 import { partnerRoutes } from './modules/partner/partner.routes'
 import { testimonialRoutes } from './modules/testimonial/testimonial.routes'
 import { tripParameterRoutes } from './modules/trip-parameter/trip-parameter.routes'
 import { metricsRoutes } from './modules/metrics/metrics.routes'
+import { notificationRoutes } from './modules/notification/notification.routes'
 import { AdminService } from './modules/admin/admin.service'
 import { prisma } from './common/config/prisma'
 
@@ -54,6 +56,10 @@ app.use(
     credentials: true,
   })
 )
+// Montada antes do express.json(): a QStash assina o corpo bruto da requisição,
+// e o parser JSON global substituiria esse corpo antes da verificação de assinatura.
+app.use('/api/notifications', notificationRoutes)
+
 app.use(express.json())
 app.use(express.urlencoded({ extended: true }))
 
@@ -122,6 +128,7 @@ app.get('/api/settings', async (_req, res) => {
 })
 
 app.use('/api/events', eventRoutes)
+app.use('/api/event-bookings', eventBookingRoutes)
 app.use('/api/partners', partnerRoutes)
 app.use('/api/testimonials', testimonialRoutes)
 
