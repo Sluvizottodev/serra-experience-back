@@ -184,6 +184,48 @@ export function tplMotoristaAprovado(data: {
   return { subject: '❌ Conta de motorista não aprovada', html: shell('Resultado da avaliação', body) }
 }
 
+// ─── U8: Viagem confirmada com motorista (passageiro) ────────────────────────
+export function tplViagemConfirmadaPassageiro(data: {
+  passengerName: string
+  tripId: string
+  driverName: string
+  vehicleInfo: string
+  origin: string
+  destination: string
+  scheduledAt: Date
+}): { subject: string; html: string } {
+  const scheduled = data.scheduledAt.toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })
+  const body = `
+    <p style="color:#374151;font-size:14px;margin:0 0 16px">Olá, <strong>${data.passengerName}</strong>!</p>
+    <p style="color:#374151;font-size:14px;margin:0 0 16px">Sua viagem foi <strong>confirmada</strong> e já tem motorista definido.</p>
+    ${table(
+      row('Motorista', data.driverName) +
+      row('Veículo', data.vehicleInfo) +
+      row('Origem', data.origin) +
+      row('Destino', data.destination) +
+      row('Agendada para', scheduled)
+    )}
+    ${alert('O pagamento é acertado diretamente com a central, fora do site.', '#10b981')}
+    ${btn('Ver minha viagem', `${BASE_URL}/trips/${data.tripId}`)}
+  `
+  return { subject: '✅ Sua viagem foi confirmada!', html: shell('Viagem confirmada', body) }
+}
+
+// ─── U9: Viagem concluída — convite para avaliar (passageiro) ────────────────
+export function tplViagemConcluidaPassageiro(data: {
+  passengerName: string
+  tripId: string
+  driverName: string
+}): { subject: string; html: string } {
+  const body = `
+    <p style="color:#374151;font-size:14px;margin:0 0 16px">Olá, <strong>${data.passengerName}</strong>!</p>
+    <p style="color:#374151;font-size:14px;margin:0 0 16px">Sua viagem com <strong>${data.driverName}</strong> foi concluída. Esperamos que tenha sido uma ótima experiência!</p>
+    ${alert('Sua avaliação ajuda a manter a qualidade do serviço — leva menos de 1 minuto.', '#10b981')}
+    ${btn('Avaliar viagem', `${BASE_URL}/trips/${data.tripId}/review`)}
+  `
+  return { subject: '⭐ Como foi sua viagem? Avalie agora', html: shell('Viagem concluída', body) }
+}
+
 // ─── U7: Nova avaliação recebida ─────────────────────────────────────────────
 export function tplNovaAvaliacao(data: {
   driverName: string

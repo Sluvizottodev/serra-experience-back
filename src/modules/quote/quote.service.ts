@@ -5,6 +5,8 @@ import { getRouteDistance } from '../../common/utils/geo'
 import { generateSecureToken } from '../../common/utils/otp'
 import { isLicenseExpired, LICENSE_EXPIRED_MESSAGE } from '../../common/utils/license'
 import { env } from '../../common/config/env'
+import { tplViagemConfirmadaPassageiro } from '../../common/utils/email.templates'
+import { enqueueNotification } from '../../common/config/queue'
 import type { CreateQuoteInput, CreateGuestQuoteInput, RespondQuoteInput, PreviewQuoteInput } from './quote.schema'
 
 // Fallback caso a configuração não esteja definida nas Settings
@@ -332,7 +334,10 @@ export class QuoteService {
     }
 
     const settings = await prisma.settings.findUnique({ where: { id: 1 } })
-    const expiryHours = Number(settings?.assignLinkExpiryHours) || DEFAULT_ASSIGN_EXPIRY_HOURS
+    const rawHours = Number(settings?.assignLinkExpiryHours)
+    const expiryHours = Number.isFinite(rawHours) && rawHours > 0
+      ? Math.min(rawHours, 720)
+      : DEFAULT_ASSIGN_EXPIRY_HOURS
 
     const token = generateSecureToken()
     const assignExpiresAt = new Date(Date.now() + expiryHours * 60 * 60 * 1000)
@@ -357,11 +362,18 @@ export class QuoteService {
     // Volta para RESPONDED se já havia preço respondido, senão OPEN — libera para reencaminhar
     const nextStatus = quote.responsePrice == null ? 'OPEN' : 'RESPONDED'
 
-    const updatedQuote = await prisma.quote.update({
-      where: { id: quoteId },
+    // Update condicionado ao status atual: se um motorista aceitar entre o
+    // findUnique acima e este update, count fica 0 e a revogação é rejeitada
+    // em vez de sobrescrever silenciosamente uma viagem já aceita.
+    const { count } = await prisma.quote.updateMany({
+      where: { id: quoteId, status: 'ASSIGNED_OPEN' },
       data: { status: nextStatus, assignToken: null, assignExpiresAt: null },
     })
+    if (count === 0) {
+      throw new AppError(409, 'Este link já foi aceito por um motorista e não pode mais ser revogado')
+    }
 
+    const updatedQuote = await prisma.quote.findUniqueOrThrow({ where: { id: quoteId } })
     return { quote: updatedQuote }
   }
 
@@ -389,16 +401,23 @@ export class QuoteService {
       const commissionRate = Number(settings?.commissionRate ?? 0.1)
       const totalPrice = Number(quote.responsePrice ?? 0) * (1 + commissionRate)
 
+      // Update condicionado ao status atual (não apenas ao id): garante que,
+      // entre o findUnique acima e este update, nenhum outro motorista ou o
+      // admin (revogação) já tenha alterado o status — fechando a janela de
+      // corrida que um update simples por id não fecharia.
+      const { count } = await tx.quote.updateMany({
+        where: { id: quote.id, status: 'ASSIGNED_OPEN' },
+        data: {
+          status: 'ACCEPTED',
+          driverProfileId: profile.id,
+          assignToken: null,
+          assignExpiresAt: null,
+        },
+      })
+      if (count === 0) throw new AppError(409, 'Esta viagem já foi aceita por outro motorista')
+
       const [updatedQuote, trip] = await Promise.all([
-        tx.quote.update({
-          where: { id: quote.id },
-          data: {
-            status: 'ACCEPTED',
-            driverProfileId: profile.id,
-            assignToken: null,
-            assignExpiresAt: null,
-          },
-        }),
+        tx.quote.findUniqueOrThrow({ where: { id: quote.id } }),
         tx.trip.create({
           data: {
             passengerId:        quote.passengerId!,
@@ -416,6 +435,24 @@ export class QuoteService {
 
       return { quote: updatedQuote, trip }
     })
+
+    const passenger = await prisma.user.findUnique({
+      where: { id: result.trip.passengerId },
+      select: { name: true, email: true },
+    })
+    if (passenger) {
+      const vehicleInfo = [profile.vehicleMake, profile.vehicleModel, profile.vehiclePlate].filter(Boolean).join(' ')
+      const { subject, html } = tplViagemConfirmadaPassageiro({
+        passengerName: passenger.name,
+        tripId: result.trip.id,
+        driverName: profile.user.name,
+        vehicleInfo: vehicleInfo || 'Não informado',
+        origin: result.trip.originAddress,
+        destination: result.trip.destinationAddress,
+        scheduledAt: result.trip.scheduledAt,
+      })
+      enqueueNotification({ to: passenger.email, subject, html }).catch(() => {})
+    }
 
     return result
   }

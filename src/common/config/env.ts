@@ -12,6 +12,14 @@ const envSchema = z.object({
   CLOUDINARY_API_SECRET: z.string().optional(),
   RESEND_API_KEY: z.string().optional(),
   MAIL_FROM: z.string().default('Serra Experience <noreply@serraexperience.com.br>'),
+  // Upstash QStash — fila de notificações com retry automático.
+  // Se ausente, o envio cai para o modo síncrono (mesmo comportamento de hoje).
+  QSTASH_TOKEN: z.string().optional(),
+  QSTASH_CURRENT_SIGNING_KEY: z.string().optional(),
+  QSTASH_NEXT_SIGNING_KEY: z.string().optional(),
+  // URL pública deste backend (ex: https://api.serraexperience.com.br) — usada pela
+  // QStash para chamar de volta o endpoint de envio. Só necessária se QSTASH_TOKEN estiver definido.
+  BACKEND_PUBLIC_URL: z.string().optional(),
   PICPAY_TOKEN: z.string().optional(),
   PICPAY_SELLER_TOKEN: z.string().min(1),
   PICPAY_API_URL: z.string().default('https://appws.picpay.com/ecommerce/public/v2'),

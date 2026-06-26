@@ -5,7 +5,8 @@ import { sendMail } from '../../common/config/mailer'
 import { env } from '../../common/config/env'
 import { notifyAdmins } from '../../common/utils/notify-admins'
 import { isLicenseExpired, LICENSE_EXPIRED_MESSAGE } from '../../common/utils/license'
-import { tplViagemCancelada, tplNovaAvaliacao } from '../../common/utils/email.templates'
+import { tplViagemCancelada, tplNovaAvaliacao, tplViagemConfirmadaPassageiro, tplViagemConcluidaPassageiro } from '../../common/utils/email.templates'
+import { enqueueNotification } from '../../common/config/queue'
 import type { UpdateTripStatusInput, CancelTripInput, ReviewInput } from './trip.schema'
 
 const tripInclude = {
@@ -131,7 +132,32 @@ export class TripService {
       })
     }
 
-    return prisma.trip.update({ where: { id: tripId }, data: { status: data.status } })
+    const updatedTrip = await prisma.trip.update({ where: { id: tripId }, data: { status: data.status } })
+
+    if (data.status === 'CONFIRMED') {
+      const vehicleInfo = [profile.vehicleMake, profile.vehicleModel, profile.vehiclePlate].filter(Boolean).join(' ')
+      const { subject, html } = tplViagemConfirmadaPassageiro({
+        passengerName: trip.passenger.name,
+        tripId: updatedTrip.id,
+        driverName: profile.user.name,
+        vehicleInfo: vehicleInfo || 'Não informado',
+        origin: trip.originAddress,
+        destination: trip.destinationAddress,
+        scheduledAt: trip.scheduledAt,
+      })
+      enqueueNotification({ to: trip.passenger.email, subject, html }).catch(() => {})
+    }
+
+    if (data.status === 'COMPLETED') {
+      const { subject, html } = tplViagemConcluidaPassageiro({
+        passengerName: trip.passenger.name,
+        tripId: updatedTrip.id,
+        driverName: profile.user.name,
+      })
+      enqueueNotification({ to: trip.passenger.email, subject, html }).catch(() => {})
+    }
+
+    return updatedTrip
   }
 
   private async notifyAdminOfRejection(
