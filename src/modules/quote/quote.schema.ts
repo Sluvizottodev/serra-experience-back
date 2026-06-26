@@ -14,7 +14,6 @@ const addressField = (label: string) =>
     .transform(v => v.trim())
 
 export const createQuoteSchema = z.object({
-  driverProfileId: z.string().uuid().optional(),
   originAddress: addressField('Endereço de origem'),
   destinationAddress: addressField('Endereço de destino'),
   scheduledAt: z.string()
@@ -69,7 +68,6 @@ export const createGuestQuoteSchema = z.object({
   notes: z.string()
     .max(500, 'Notas não podem exceder 500 caracteres')
     .optional(),
-  driverIds: z.array(z.string().uuid()).optional(),
 })
 
 export type CreateQuoteInput = z.infer<typeof createQuoteSchema>

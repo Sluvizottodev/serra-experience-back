@@ -16,19 +16,6 @@ const QUOTE_EXPIRY_HOURS = 48
 
 export class QuoteService {
   async createQuote(passengerId: string, data: CreateQuoteInput) {
-    // Se um motorista específico foi selecionado, validar capacidade
-    if (data.driverProfileId) {
-      const driver = await prisma.driverProfile.findUnique({
-        where: { id: data.driverProfileId },
-      })
-      
-      if (!driver) throw new AppError(404, 'Motorista não encontrado')
-      if (!driver.isAvailable) throw new AppError(400, 'Motorista não está disponível no momento')
-      if (driver.vehicleCapacity !== null && driver.vehicleCapacity < data.passengerCount) {
-        throw new AppError(400, `O veículo deste motorista comporta apenas ${driver.vehicleCapacity} ${driver.vehicleCapacity === 1 ? 'passageiro' : 'passageiros'}, mas você solicitou ${data.passengerCount}`)
-      }
-    }
-
     const expiresAt = new Date(Date.now() + QUOTE_EXPIRY_HOURS * 60 * 60 * 1000)
     return prisma.quote.create({
       data: {
@@ -42,28 +29,9 @@ export class QuoteService {
 
   async createGuestQuote(data: CreateGuestQuoteInput) {
     const expiresAt = new Date(Date.now() + QUOTE_EXPIRY_HOURS * 60 * 60 * 1000)
-    const { guestName, guestPhone, driverIds, ...quoteData } = data
+    const { guestName, guestPhone, ...quoteData } = data
 
-    // Se múltiplos motoristas foram selecionados, cria um orçamento por motorista
-    if (driverIds && driverIds.length > 0) {
-      const quotes = await Promise.all(
-        driverIds.map(driverProfileId =>
-          prisma.quote.create({
-            data: {
-              ...quoteData,
-              guestName,
-              guestPhone,
-              driverProfileId,
-              scheduledAt: new Date(quoteData.scheduledAt),
-              expiresAt,
-            },
-          })
-        )
-      )
-      return { quotes, count: quotes.length }
-    }
-
-    const quote = await prisma.quote.create({
+    return prisma.quote.create({
       data: {
         ...quoteData,
         guestName,
@@ -72,7 +40,6 @@ export class QuoteService {
         expiresAt,
       },
     })
-    return { quotes: [quote], count: 1 }
   }
 
   async getMyQuotes(passengerId: string, page = 1, limit = 10) {
