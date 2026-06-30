@@ -40,3 +40,23 @@ export async function remove(req: Request, res: Response) {
     res.status(404).json({ error: 'Depoimento não encontrado' })
   }
 }
+
+export async function uploadImage(req: Request, res: Response) {
+  if (!req.file) {
+    return res.status(400).json({ error: 'Arquivo não enviado' })
+  }
+  const MAX_BYTES = 5 * 1024 * 1024
+  if (req.file.size > MAX_BYTES) {
+    return res.status(400).json({ error: 'Imagem deve ter no máximo 5 MB' })
+  }
+  const allowed = ['image/jpeg', 'image/png', 'image/webp']
+  if (!allowed.includes(req.file.mimetype)) {
+    return res.status(400).json({ error: 'Formato inválido. Use JPG, PNG ou WEBP' })
+  }
+  try {
+    const item = await svc.uploadImage(String(req.params.id), req.file.buffer, req.file.mimetype)
+    res.json(item)
+  } catch {
+    res.status(404).json({ error: 'Depoimento não encontrado' })
+  }
+}

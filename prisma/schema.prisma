@@ -170,6 +170,7 @@ model DriverProfile {
   quotes         Quote[]
   reviews        Review[]
   favoritedBy     FavoriteDriver[]
+  eventBookings  EventBooking[]
 
   @@map("driver_profiles")
 }
@@ -445,19 +446,22 @@ model EventDateSlot {
 }
 
 model EventBooking {
-  id             String             @id @default(uuid())
-  eventId        String
-  event          Event              @relation(fields: [eventId], references: [id], onDelete: Cascade)
-  userId         String?
-  user           User?              @relation(fields: [userId], references: [id], onDelete: Cascade)
-  guestName      String?
-  guestPhone     String?
-  passengerCount Int                @default(1)
-  status         EventBookingStatus @default(PENDING)
-  notes          String?
-  expiresAt      DateTime?
-  createdAt      DateTime           @default(now())
-  updatedAt      DateTime           @updatedAt
+  id              String             @id @default(uuid())
+  eventId         String
+  event           Event              @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  userId          String?
+  user            User?              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  guestName       String?
+  guestPhone      String?
+  passengerCount  Int                @default(1)
+  status          EventBookingStatus @default(PENDING)
+  paymentStatus   PaymentStatus      @default(UNPAID)
+  driverProfileId String?
+  driverProfile   DriverProfile?     @relation(fields: [driverProfileId], references: [id], onDelete: SetNull)
+  notes           String?
+  expiresAt       DateTime?
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
 
   slots EventBookingSlot[]
 
@@ -490,16 +494,24 @@ model Partner {
   @@map("partners")
 }
 
+enum TestimonialType {
+  TEXT
+  IMAGE
+}
+
 model Testimonial {
-  id        String   @id @default(uuid())
-  name      String
-  role      String?
-  text      String
-  rating    Int?
-  active    Boolean  @default(true)
-  order     Int      @default(0)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id            String          @id @default(uuid())
+  type          TestimonialType @default(TEXT)
+  name          String
+  role          String?
+  text          String?
+  rating        Int?
+  imageUrl      String?         @map("image_url")
+  imagePublicId String?         @map("image_public_id")
+  active        Boolean         @default(true)
+  order         Int             @default(0)
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
 
   @@map("testimonials")
 }
