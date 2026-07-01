@@ -9,7 +9,8 @@ const globalForPrisma = globalThis as unknown as { prisma: PrismaClient }
 function withConnectionLimit(url: string): string {
   const [base, query] = url.split('?')
   const params = new URLSearchParams(query)
-  if (!params.has('connection_limit')) params.set('connection_limit', '3')
+  const limit = process.env.NODE_ENV === 'production' ? '1' : '3'
+  if (!params.has('connection_limit')) params.set('connection_limit', limit)
   if (!params.has('pool_timeout')) params.set('pool_timeout', '10')
   return `${base}?${params.toString()}`
 }
