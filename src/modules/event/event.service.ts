@@ -1,5 +1,6 @@
 import { prisma } from '../../common/config/prisma'
 import { cloudinary } from '../../common/config/cloudinary'
+import { pingIndexNow } from '../../common/utils/indexnow'
 
 function toSlug(title: string): string {
   return title
@@ -72,7 +73,9 @@ export class EventService {
     if (duplicate) throw Object.assign(new Error('Já existe um evento com este título, data e local'), { statusCode: 409 })
 
     const slug = await uniqueSlug(toSlug(data.title))
-    return prisma.event.create({ data: { ...data, slug } })
+    const event = await prisma.event.create({ data: { ...data, slug } })
+    void pingIndexNow([`/eventos/${slug}`, '/eventos', '/sitemap.xml'])
+    return event
   }
 
   async updateEvent(
@@ -99,7 +102,9 @@ export class EventService {
       slug = await uniqueSlug(toSlug(data.title), id)
     }
 
-    return prisma.event.update({ where: { id }, data: { ...data, slug } })
+    const updated = await prisma.event.update({ where: { id }, data: { ...data, slug } })
+    void pingIndexNow([`/eventos/${slug}`, '/eventos', '/sitemap.xml'])
+    return updated
   }
 
   async deleteEvent(id: string) {
@@ -108,7 +113,9 @@ export class EventService {
     if (event.imagePublicId) {
       await cloudinary.uploader.destroy(event.imagePublicId).catch(() => null)
     }
-    return prisma.event.delete({ where: { id } })
+    const deleted = await prisma.event.delete({ where: { id } })
+    void pingIndexNow(['/eventos', '/sitemap.xml'])
+    return deleted
   }
 
   async uploadImage(id: string, fileBuffer: Buffer, mimetype: string) {
