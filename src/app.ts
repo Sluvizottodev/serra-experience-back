@@ -79,6 +79,7 @@ const SITE_URL = 'https://serraexperience.com.br'
 const staticPages = [
   { loc: '/',                  changefreq: 'weekly',  priority: '1.0' },
   { loc: '/drivers',           changefreq: 'daily',   priority: '0.9' },
+  { loc: '/eventos',           changefreq: 'weekly',  priority: '0.8' },
   { loc: '/orcamento-preview', changefreq: 'monthly', priority: '0.8' },
 ]
 
@@ -116,6 +117,13 @@ app.get('/sitemap.xml', async (_req, res) => {
     res.status(500).send('Erro ao gerar sitemap')
   }
 })
+const INDEXNOW_KEY = process.env.INDEXNOW_KEY
+if (INDEXNOW_KEY) {
+  app.get(`/${INDEXNOW_KEY}.txt`, (_req, res) => {
+    res.setHeader('Content-Type', 'text/plain; charset=utf-8')
+    res.send(INDEXNOW_KEY)
+  })
+}
 
 // Rotas públicas (sem prefixo /api — o frontend chama com barra inicial que remove o baseURL /api/)
 app.get('/api/settings', async (_req, res) => {
