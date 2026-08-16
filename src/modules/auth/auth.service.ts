@@ -13,65 +13,82 @@ const OTP_EXPIRY_MINUTES = 10
 
 export class AuthService {
   async register(data: RegisterInput) {
-    const existing = await prisma.user.findUnique({ where: { email: data.email } })
-    if (existing && existing.isVerified) throw new AppError(409, 'Este e-mail já está cadastrado no sistema')
+    // Rejeita se já existe um usuário confirmado com este email
+    const existingUser = await prisma.user.findUnique({ where: { email: data.email } })
+    if (existingUser) throw new AppError(409, 'Este e-mail já está cadastrado no sistema')
 
     const hashed = await bcrypt.hash(data.password, 12)
-    const user = existing
-      ? await prisma.user.update({
-          where: { id: existing.id },
-          data: {
-            name: data.name,
-            password: hashed,
-            phone: data.phone,
-            cpf: data.cpf ? encrypt(data.cpf) : undefined,
-            role: data.role,
-          },
-        })
-      : await prisma.user.create({
-          data: {
-            name: data.name,
-            email: data.email,
-            password: hashed,
-            phone: data.phone,
-            cpf: data.cpf ? encrypt(data.cpf) : undefined,
-            role: data.role,
-          },
-        })
-
-    await this.sendOtp(user.id, user.email)
-
-    if (data.role === 'DRIVER') {
-      const { subject, html } = tplNovoMotorista({ driverName: user.name, driverEmail: user.email, registeredAt: user.createdAt })
-      notifyAdmins(subject, html).catch(() => {})
-    }
-
-    return { message: 'Conta criada. Verifique seu e-mail para confirmar.' }
-  }
-
-  async sendOtp(userId: string, email: string) {
-    await prisma.otp.deleteMany({ where: { userId } })
     const code = generateOtp()
-    const expiresAt = new Date(Date.now() + OTP_EXPIRY_MINUTES * 60 * 1000)
-    await prisma.otp.create({ data: { code, userId, expiresAt } })
+    const otpExpiresAt = new Date(Date.now() + OTP_EXPIRY_MINUTES * 60 * 1000)
+
+    // Upsert no pending: se já existe um cadastro pendente para este email, substitui
+    await prisma.pendingRegistration.upsert({
+      where: { email: data.email },
+      update: {
+        name: data.name,
+        password: hashed,
+        phone: data.phone ?? null,
+        cpf: data.cpf ? encrypt(data.cpf) : null,
+        role: data.role,
+        otpCode: code,
+        otpExpiresAt,
+      },
+      create: {
+        name: data.name,
+        email: data.email,
+        password: hashed,
+        phone: data.phone ?? null,
+        cpf: data.cpf ? encrypt(data.cpf) : null,
+        role: data.role,
+        otpCode: code,
+        otpExpiresAt,
+      },
+    })
 
     await sendMail(
-      email,
-      'Código de verificação - Viagem com Motorista',
+      data.email,
+      'Código de verificação - Serra Experience',
       `<h2>Seu código de verificação é: <strong>${code}</strong></h2><p>Expira em ${OTP_EXPIRY_MINUTES} minutos.</p>`
     )
+
+    return { message: 'Código enviado para seu e-mail. Confirme para concluir o cadastro.' }
   }
 
   async resendOtp(email: string) {
+    // Verifica primeiro se é um cadastro pendente
+    const pending = await prisma.pendingRegistration.findUnique({ where: { email } })
+    if (pending) {
+      // Rate limit baseado em updatedAt (quando o último OTP foi enviado)
+      const secondsSince = (Date.now() - pending.updatedAt.getTime()) / 1000
+      if (secondsSince < 60) {
+        const wait = Math.ceil(60 - secondsSince)
+        throw new AppError(429, `Aguarde ${wait} segundos antes de solicitar um novo código`)
+      }
+
+      const code = generateOtp()
+      const otpExpiresAt = new Date(Date.now() + OTP_EXPIRY_MINUTES * 60 * 1000)
+      await prisma.pendingRegistration.update({
+        where: { email },
+        data: { otpCode: code, otpExpiresAt },
+      })
+
+      await sendMail(
+        email,
+        'Código de verificação - Serra Experience',
+        `<h2>Seu código de verificação é: <strong>${code}</strong></h2><p>Expira em ${OTP_EXPIRY_MINUTES} minutos.</p>`
+      )
+      return { message: 'Novo código enviado para seu e-mail' }
+    }
+
+    // Fallback: usuário já existe mas não verificado (edge case de dados antigos)
     const user = await prisma.user.findUnique({ where: { email } })
-    if (!user) throw new AppError(404, 'Usuário não encontrado')
+    if (!user) throw new AppError(404, 'Nenhum cadastro pendente encontrado para este e-mail')
     if (user.isVerified) throw new AppError(400, 'E-mail já verificado')
 
     const recent = await prisma.otp.findFirst({
       where: { userId: user.id },
       orderBy: { createdAt: 'desc' },
     })
-
     if (recent) {
       const secondsSince = (Date.now() - recent.createdAt.getTime()) / 1000
       if (secondsSince < 60) {
@@ -79,12 +96,41 @@ export class AuthService {
         throw new AppError(429, `Aguarde ${wait} segundos antes de solicitar um novo código`)
       }
     }
-
-    await this.sendOtp(user.id, user.email)
+    await this.sendOtpLegacy(user.id, user.email)
     return { message: 'Novo código enviado para seu e-mail' }
   }
 
   async verifyOtp(data: VerifyOtpInput) {
+    // Fluxo principal: cadastro pendente
+    const pending = await prisma.pendingRegistration.findUnique({ where: { email: data.email } })
+    if (pending) {
+      if (pending.otpCode !== data.code) throw new AppError(400, 'Código de verificação inválido')
+      if (pending.otpExpiresAt < new Date()) throw new AppError(400, 'Código de verificação expirado. Solicite um novo.')
+
+      const [user] = await prisma.$transaction([
+        prisma.user.create({
+          data: {
+            name: pending.name,
+            email: pending.email,
+            password: pending.password,
+            phone: pending.phone ?? undefined,
+            cpf: pending.cpf ?? undefined,
+            role: pending.role,
+            isVerified: true,
+          },
+        }),
+        prisma.pendingRegistration.delete({ where: { email: data.email } }),
+      ])
+
+      if (pending.role === 'DRIVER') {
+        const { subject, html } = tplNovoMotorista({ driverName: user.name, driverEmail: user.email, registeredAt: user.createdAt })
+        notifyAdmins(subject, html).catch(() => {})
+      }
+
+      return { message: 'E-mail verificado com sucesso. Cadastro concluído!' }
+    }
+
+    // Fallback: usuário legado (isVerified: false) ainda na tabela users
     const user = await prisma.user.findUnique({ where: { email: data.email } })
     if (!user) throw new AppError(404, 'Usuário não encontrado')
 
@@ -92,7 +138,6 @@ export class AuthService {
       where: { userId: user.id, code: data.code },
       orderBy: { createdAt: 'desc' },
     })
-
     if (!otp) throw new AppError(400, 'Código de verificação inválido')
     if (otp.expiresAt < new Date()) throw new AppError(400, 'Código de verificação expirado. Solicite um novo.')
 
@@ -100,6 +145,18 @@ export class AuthService {
     await prisma.otp.deleteMany({ where: { userId: user.id } })
 
     return { message: 'E-mail verificado com sucesso' }
+  }
+
+  private async sendOtpLegacy(userId: string, email: string) {
+    await prisma.otp.deleteMany({ where: { userId } })
+    const code = generateOtp()
+    const expiresAt = new Date(Date.now() + OTP_EXPIRY_MINUTES * 60 * 1000)
+    await prisma.otp.create({ data: { code, userId, expiresAt } })
+    await sendMail(
+      email,
+      'Código de verificação - Serra Experience',
+      `<h2>Seu código de verificação é: <strong>${code}</strong></h2><p>Expira em ${OTP_EXPIRY_MINUTES} minutos.</p>`
+    )
   }
 
   async login(data: LoginInput, res: import('express').Response) {
