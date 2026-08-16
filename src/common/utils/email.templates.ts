@@ -160,6 +160,37 @@ export function tplViagemCancelada(data: {
   return { subject: '❌ Viagem cancelada', html: shell('Viagem cancelada', body) }
 }
 
+// ─── U10: Lembrete de viagem confirmada (motorista) ──────────────────────────
+export function tplLembreteViagemMotorista(data: {
+  tripId: string
+  driverName: string
+  passengerName: string
+  origin: string
+  destination: string
+  scheduledAt: Date
+  when: 'VESPERA' | 'UMA_HORA'
+}): { subject: string; html: string } {
+  const scheduled = data.scheduledAt.toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })
+  const headline = data.when === 'VESPERA'
+    ? 'Você tem uma viagem agendada para amanhã.'
+    : 'Sua viagem começa em aproximadamente 1 hora.'
+  const body = `
+    <p style="color:#374151;font-size:14px;margin:0 0 16px">Olá, <strong>${data.driverName}</strong>!</p>
+    <p style="color:#374151;font-size:14px;margin:0 0 16px">${headline}</p>
+    ${table(
+      row('Passageiro', data.passengerName) +
+      row('Origem', data.origin) +
+      row('Destino', data.destination) +
+      row('Agendada para', scheduled)
+    )}
+    ${btn('Ver minha viagem', `${BASE_URL}/driver/trips/${data.tripId}`)}
+  `
+  const subject = data.when === 'VESPERA'
+    ? '📅 Lembrete: viagem amanhã'
+    : '⏰ Lembrete: viagem em 1 hora'
+  return { subject, html: shell('Lembrete de viagem', body) }
+}
+
 // ─── U6: Motorista aprovado ou rejeitado ─────────────────────────────────────
 export function tplMotoristaAprovado(data: {
   driverName: string
