@@ -84,38 +84,41 @@ const staticPages = [
 ]
 
 app.get('/sitemap.xml', async (_req, res) => {
-  try {
-    const today = new Date().toISOString().slice(0, 10)
+  const today = new Date().toISOString().slice(0, 10)
 
-    const events = await prisma.event.findMany({
+  const xmlUrl = (loc: string, lastmod: string, changefreq: string, priority: string) =>
+    `  <url>\n    <loc>${SITE_URL}${loc}</loc>\n    <lastmod>${lastmod}</lastmod>\n    <changefreq>${changefreq}</changefreq>\n    <priority>${priority}</priority>\n  </url>`
+
+  // Falha do banco não deve derrubar o sitemap: um 500 faz o Bing/Google
+  // marcarem o sitemap como quebrado. Degradamos para as páginas estáticas.
+  let events: { slug: string; updatedAt: Date }[] = []
+  try {
+    events = await prisma.event.findMany({
       where: { active: true },
       select: { slug: true, updatedAt: true },
       orderBy: { order: 'asc' },
     })
-
-    const xmlUrl = (loc: string, lastmod: string, changefreq: string, priority: string) =>
-      `  <url>\n    <loc>${SITE_URL}${loc}</loc>\n    <lastmod>${lastmod}</lastmod>\n    <changefreq>${changefreq}</changefreq>\n    <priority>${priority}</priority>\n  </url>`
-
-    const urls = [
-      ...staticPages.map(p => xmlUrl(p.loc, today, p.changefreq, p.priority)),
-      ...events.map(ev =>
-        xmlUrl(
-          `/eventos/${ev.slug}`,
-          ev.updatedAt.toISOString().slice(0, 10),
-          'weekly',
-          '0.8',
-        )
-      ),
-    ]
-
-    const xml = `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls.join('\n\n')}\n</urlset>`
-
-    res.setHeader('Content-Type', 'application/xml')
-    res.setHeader('Cache-Control', 'public, max-age=3600')
-    res.send(xml)
   } catch {
-    res.status(500).send('Erro ao gerar sitemap')
+    events = []
   }
+
+  const urls = [
+    ...staticPages.map(p => xmlUrl(p.loc, today, p.changefreq, p.priority)),
+    ...events.map(ev =>
+      xmlUrl(
+        `/eventos/${ev.slug}`,
+        ev.updatedAt.toISOString().slice(0, 10),
+        'weekly',
+        '0.8',
+      )
+    ),
+  ]
+
+  const xml = `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls.join('\n\n')}\n</urlset>`
+
+  res.setHeader('Content-Type', 'application/xml')
+  res.setHeader('Cache-Control', 'public, max-age=3600')
+  res.send(xml)
 })
 const INDEXNOW_KEY = process.env.INDEXNOW_KEY
 if (INDEXNOW_KEY) {

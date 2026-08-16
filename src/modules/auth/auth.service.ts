@@ -14,19 +14,30 @@ const OTP_EXPIRY_MINUTES = 10
 export class AuthService {
   async register(data: RegisterInput) {
     const existing = await prisma.user.findUnique({ where: { email: data.email } })
-    if (existing) throw new AppError(409, 'Este e-mail já está cadastrado no sistema')
+    if (existing && existing.isVerified) throw new AppError(409, 'Este e-mail já está cadastrado no sistema')
 
     const hashed = await bcrypt.hash(data.password, 12)
-    const user = await prisma.user.create({
-      data: {
-        name: data.name,
-        email: data.email,
-        password: hashed,
-        phone: data.phone,
-        cpf: data.cpf ? encrypt(data.cpf) : undefined,
-        role: data.role,
-      },
-    })
+    const user = existing
+      ? await prisma.user.update({
+          where: { id: existing.id },
+          data: {
+            name: data.name,
+            password: hashed,
+            phone: data.phone,
+            cpf: data.cpf ? encrypt(data.cpf) : undefined,
+            role: data.role,
+          },
+        })
+      : await prisma.user.create({
+          data: {
+            name: data.name,
+            email: data.email,
+            password: hashed,
+            phone: data.phone,
+            cpf: data.cpf ? encrypt(data.cpf) : undefined,
+            role: data.role,
+          },
+        })
 
     await this.sendOtp(user.id, user.email)
 
