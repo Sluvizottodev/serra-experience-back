@@ -526,3 +526,19 @@ model PageSession {
   @@index([enteredAt])
   @@map("page_sessions")
 }
+
+model PendingRegistration {
+  id           String   @id @default(uuid())
+  name         String
+  email        String   @unique
+  password     String
+  phone        String?
+  cpf          String?
+  role         Role     @default(PASSENGER)
+  otpCode      String
+  otpExpiresAt DateTime
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@map("pending_registrations")
+}
