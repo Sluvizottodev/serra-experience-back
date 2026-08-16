@@ -5,7 +5,7 @@ import { sendMail } from '../../common/config/mailer'
 import { env } from '../../common/config/env'
 import { notifyAdmins } from '../../common/utils/notify-admins'
 import { isLicenseExpired, LICENSE_EXPIRED_MESSAGE } from '../../common/utils/license'
-import { tplViagemCancelada, tplNovaAvaliacao, tplViagemConfirmadaPassageiro, tplViagemConcluidaPassageiro } from '../../common/utils/email.templates'
+import { tplViagemCancelada, tplNovaAvaliacao, tplViagemConfirmadaPassageiro, tplViagemConcluidaPassageiro, tplLembreteViagemMotorista } from '../../common/utils/email.templates'
 import { enqueueNotification } from '../../common/config/queue'
 import type { UpdateTripStatusInput, CancelTripInput, ReviewInput } from './trip.schema'
 
@@ -65,7 +65,7 @@ export class TripService {
   async updateTripStatus(tripId: string, userId: string, data: UpdateTripStatusInput) {
     const profile = await prisma.driverProfile.findUnique({
       where: { userId },
-      include: { user: { select: { name: true } } },
+      include: { user: { select: { name: true, email: true } } },
     })
     if (!profile) throw new AppError(404, 'Perfil de motorista não encontrado')
 
@@ -146,6 +146,14 @@ export class TripService {
         scheduledAt: trip.scheduledAt,
       })
       enqueueNotification({ to: trip.passenger.email, subject, html }).catch(() => {})
+
+      this.scheduleDriverReminders(updatedTrip.id, trip.scheduledAt, {
+        driverName: profile.user.name,
+        driverEmail: profile.user.email,
+        passengerName: trip.passenger.name,
+        origin: trip.originAddress,
+        destination: trip.destinationAddress,
+      }).catch(err => console.error('Falha ao agendar lembretes de viagem:', err))
     }
 
     if (data.status === 'COMPLETED') {
@@ -158,6 +166,67 @@ export class TripService {
     }
 
     return updatedTrip
+  }
+
+  // Constrói o instante correspondente a `HH:00` no horário de Brasília, no dia anterior a `date`.
+  // Necessário porque o servidor roda em UTC (Vercel) e Date.setHours usaria o timezone do servidor.
+  private static brasiliaHourBeforeDate(date: Date, hour: number): Date {
+    const dayBefore = new Date(date.getTime() - 24 * 60 * 60 * 1000)
+    const parts = new Intl.DateTimeFormat('en-US', {
+      timeZone: 'America/Sao_Paulo',
+      year: 'numeric', month: '2-digit', day: '2-digit',
+    }).formatToParts(dayBefore)
+    const y = parts.find(p => p.type === 'year')!.value
+    const m = parts.find(p => p.type === 'month')!.value
+    const d = parts.find(p => p.type === 'day')!.value
+
+    // America/Sao_Paulo não usa horário de verão desde 2019 — offset fixo UTC-3.
+    return new Date(`${y}-${m}-${d}T${String(hour).padStart(2, '0')}:00:00-03:00`)
+  }
+
+  // Agenda os dois lembretes de viagem para o motorista: véspera às 18h (horário de Brasília)
+  // e 1h antes do horário agendado. Lembretes cujo horário já passou são pulados.
+  private async scheduleDriverReminders(
+    tripId: string,
+    scheduledAt: Date,
+    info: { driverName: string; driverEmail: string; passengerName: string; origin: string; destination: string },
+  ) {
+    const now = Date.now()
+
+    const vesperaAt = TripService.brasiliaHourBeforeDate(scheduledAt, 18)
+    const umaHoraAntesAt = new Date(scheduledAt.getTime() - 60 * 60 * 1000)
+
+    const reminders: Array<{ at: Date; when: 'VESPERA' | 'UMA_HORA' }> = [
+      { at: vesperaAt, when: 'VESPERA' },
+      { at: umaHoraAntesAt, when: 'UMA_HORA' },
+    ]
+
+    const jobs = reminders
+      .filter(reminder => reminder.at.getTime() > now)
+      .map(reminder => {
+        const { subject, html } = tplLembreteViagemMotorista({
+          tripId,
+          driverName: info.driverName,
+          passengerName: info.passengerName,
+          origin: info.origin,
+          destination: info.destination,
+          scheduledAt,
+          when: reminder.when,
+        })
+
+        return enqueueNotification(
+          {
+            to: info.driverEmail,
+            subject,
+            html,
+            guardTripId: tripId,
+            guardStatus: 'CONFIRMED',
+          },
+          Math.floor(reminder.at.getTime() / 1000),
+        )
+      })
+
+    await Promise.all(jobs)
   }
 
   private async notifyAdminOfRejection(
