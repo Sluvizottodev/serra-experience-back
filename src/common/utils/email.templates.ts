@@ -52,7 +52,7 @@ function shell(title: string, body: string): string {
           <!-- footer -->
           <tr>
             <td style="padding:18px 32px 26px;background:#faf7f0;border-top:1px solid #ece3d2">
-              <p style="margin:0 0 4px;color:#8a7f6b;font-size:12px;line-height:1.6">Serra Experience &middot; Transporte executivo na Região Serrana &middot; Rio de Janeiro</p>
+              <p style="margin:0 0 4px;color:#8a7f6b;font-size:12px;line-height:1.6">Serra Experience &middot; Motoristas particulares em Nova Friburgo e Serra Carioca</p>
               <p style="margin:0;color:#b3a893;font-size:11px;line-height:1.6">Esta é uma mensagem automática. Não é possível responder este e-mail.</p>
             </td>
           </tr>
@@ -121,11 +121,14 @@ export function tplOtpVerification(data: { code: string; expiryMinutes: number }
 
 // ─── Autenticação: redefinição de senha ──────────────────────────────────────
 export function tplPasswordReset(data: { resetUrl: string; expiryMinutes: number }): { subject: string; html: string } {
+  const hours = Math.round(data.expiryMinutes / 60)
+  let expiryText = `${data.expiryMinutes} minutos`
+  if (hours >= 1) expiryText = hours === 1 ? '1 hora' : `${hours} horas`
   const body = `
     ${p('Recebemos uma solicitação para redefinir a senha da sua conta na Serra Experience.')}
     ${btn('Redefinir minha senha', data.resetUrl)}
     ${linkFallback(data.resetUrl)}
-    ${alert(`Este link expira em <strong>${Math.round(data.expiryMinutes / 60)} hora(s)</strong>. Se você não solicitou a troca de senha, pode ignorar este e-mail com segurança.`, '#9b3030')}
+    ${alert(`Este link expira em <strong>${expiryText}</strong>. Se você não solicitou a troca de senha, pode ignorar este e-mail com segurança.`, '#9b3030')}
   `
   return { subject: 'Redefinição de senha — Serra Experience', html: shell('Redefinir sua senha', body) }
 }
