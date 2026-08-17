@@ -38,7 +38,7 @@ export const createDriverProfileSchema = z.object({
     .max(10, 'Capacidade máxima é 10')
     .optional(),
   licenseNumber: z.string()
-    .min(1, 'Número da carteira é obrigatório')
+    .regex(/^\d{11}$/, 'Número da carteira deve ter 11 dígitos')
     .optional(),
   licenseExpiry: z.string()
     .datetime('Data inválida')
