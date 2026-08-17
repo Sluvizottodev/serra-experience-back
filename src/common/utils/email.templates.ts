@@ -1,4 +1,4 @@
-const BASE_URL = process.env.CORS_ORIGIN || ''
+const BASE_URL = (process.env.CORS_ORIGIN || '').split(',')[0].trim()
 const LOGO_URL = `${BASE_URL}/logo-email.png`
 
 // ─── Layout base ───────────────────────────────────────────────────────────
