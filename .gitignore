@@ -38,3 +38,5 @@ coverage/
 # Prisma migrations geradas localmente (manter schema, ignorar shadow db)
 prisma/*.db
 package-lock.json
+.vercel
+.env*
