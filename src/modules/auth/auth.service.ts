@@ -6,7 +6,7 @@ import { signAccessToken, signRefreshToken, verifyRefreshToken } from '../../com
 import { generateOtp, generateSecureToken } from '../../common/utils/otp'
 import { encrypt } from '../../common/utils/crypto'
 import { notifyAdmins } from '../../common/utils/notify-admins'
-import { tplNovoMotorista } from '../../common/utils/email.templates'
+import { tplNovoMotorista, tplOtpVerification, tplPasswordReset } from '../../common/utils/email.templates'
 import type { RegisterInput, LoginInput, VerifyOtpInput, ForgotPasswordInput, ResetPasswordInput } from './auth.schema'
 
 const OTP_EXPIRY_MINUTES = 10
@@ -45,11 +45,8 @@ export class AuthService {
       },
     })
 
-    await sendMail(
-      data.email,
-      'Código de verificação - Serra Experience',
-      `<h2>Seu código de verificação é: <strong>${code}</strong></h2><p>Expira em ${OTP_EXPIRY_MINUTES} minutos.</p>`
-    )
+    const { subject, html } = tplOtpVerification({ code, expiryMinutes: OTP_EXPIRY_MINUTES })
+    await sendMail(data.email, subject, html)
 
     return { message: 'Código enviado para seu e-mail. Confirme para concluir o cadastro.' }
   }
@@ -72,11 +69,8 @@ export class AuthService {
         data: { otpCode: code, otpExpiresAt },
       })
 
-      await sendMail(
-        email,
-        'Código de verificação - Serra Experience',
-        `<h2>Seu código de verificação é: <strong>${code}</strong></h2><p>Expira em ${OTP_EXPIRY_MINUTES} minutos.</p>`
-      )
+      const { subject, html } = tplOtpVerification({ code, expiryMinutes: OTP_EXPIRY_MINUTES })
+      await sendMail(email, subject, html)
       return { message: 'Novo código enviado para seu e-mail' }
     }
 
@@ -152,11 +146,8 @@ export class AuthService {
     const code = generateOtp()
     const expiresAt = new Date(Date.now() + OTP_EXPIRY_MINUTES * 60 * 1000)
     await prisma.otp.create({ data: { code, userId, expiresAt } })
-    await sendMail(
-      email,
-      'Código de verificação - Serra Experience',
-      `<h2>Seu código de verificação é: <strong>${code}</strong></h2><p>Expira em ${OTP_EXPIRY_MINUTES} minutos.</p>`
-    )
+    const { subject, html } = tplOtpVerification({ code, expiryMinutes: OTP_EXPIRY_MINUTES })
+    await sendMail(email, subject, html)
   }
 
   async login(data: LoginInput, res: import('express').Response) {
@@ -284,11 +275,8 @@ export class AuthService {
     await prisma.otp.create({ data: { code: token, userId: user.id, expiresAt } })
 
     const resetUrl = `${process.env.CORS_ORIGIN}/reset-password?token=${token}`
-    await sendMail(
-      user.email,
-      'Redefinição de senha - Viagem com Motorista',
-      `<p>Clique no link para redefinir sua senha:</p><a href="${resetUrl}">${resetUrl}</a><p>Expira em 1 hora.</p>`
-    )
+    const { subject, html } = tplPasswordReset({ resetUrl, expiryMinutes: 60 })
+    await sendMail(user.email, subject, html)
 
     return { message: 'Se o e-mail existir, você receberá as instruções.' }
   }

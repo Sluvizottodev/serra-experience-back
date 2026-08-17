@@ -1,47 +1,136 @@
 const BASE_URL = process.env.CORS_ORIGIN || ''
+const LOGO_URL = `${BASE_URL}/logo-email.png`
 
+// ─── Layout base ───────────────────────────────────────────────────────────
+// Tabelas em vez de flex/grid — compatível com Outlook e clientes de e-mail
+// legados. Cores seguem a paleta da marca (dourado + carvão escuro) usada no
+// site; o corpo do card fica claro para garantir legibilidade em qualquer
+// cliente, com o cabeçalho escuro carregando a identidade visual.
 function shell(title: string, body: string): string {
   return `<!DOCTYPE html>
 <html lang="pt-BR">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <meta name="supported-color-schemes" content="light">
   <title>${title}</title>
 </head>
-<body style="margin:0;padding:0;background:#f0f0f0;font-family:Arial,Helvetica,sans-serif">
-  <div style="max-width:580px;margin:40px auto;background:#ffffff;border-radius:10px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,.10)">
-    <div style="background:#111827;padding:24px 32px;display:flex;align-items:center">
-      <span style="color:#c9a84c;font-size:22px;font-weight:700;letter-spacing:.5px">Serra Experience</span>
-    </div>
-    <div style="padding:32px 32px 24px">
-      <h2 style="margin:0 0 20px;color:#111827;font-size:18px;font-weight:700">${title}</h2>
-      ${body}
-    </div>
-    <div style="padding:16px 32px;background:#f9fafb;border-top:1px solid #e5e7eb">
-      <p style="margin:0;color:#9ca3af;font-size:12px">Esta é uma mensagem automática do sistema Serra Experience. Não responda este e-mail.</p>
-    </div>
-  </div>
+<body style="margin:0;padding:0;background:#f4efe4;font-family:'Segoe UI',Helvetica,Arial,sans-serif">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f4efe4;padding:32px 16px">
+    <tr>
+      <td align="center">
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:560px;background:#ffffff;border-radius:14px;overflow:hidden;box-shadow:0 6px 24px rgba(20,16,8,.10)">
+
+          <!-- accent bar -->
+          <tr><td style="height:4px;background:#a98549;font-size:0;line-height:0">&nbsp;</td></tr>
+
+          <!-- header -->
+          <tr>
+            <td style="background:#111009;padding:28px 32px">
+              <table role="presentation" cellpadding="0" cellspacing="0">
+                <tr>
+                  <td style="padding-right:12px">
+                    <img src="${LOGO_URL}" width="54" height="24" alt="Serra Experience" style="display:block;border:0">
+                  </td>
+                  <td style="font-family:Georgia,'Times New Roman',serif;color:#dac787;font-size:20px;font-weight:700;letter-spacing:.4px;vertical-align:middle">
+                    Serra&nbsp;Experience
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          <!-- body -->
+          <tr>
+            <td style="padding:34px 32px 28px">
+              <h1 style="margin:0 0 18px;color:#1c1710;font-size:19px;font-weight:700;letter-spacing:-.2px">${title}</h1>
+              ${body}
+            </td>
+          </tr>
+
+          <!-- footer -->
+          <tr>
+            <td style="padding:18px 32px 26px;background:#faf7f0;border-top:1px solid #ece3d2">
+              <p style="margin:0 0 4px;color:#8a7f6b;font-size:12px;line-height:1.6">Serra Experience &middot; Motoristas particulares em Nova Friburgo e Serra Carioca</p>
+              <p style="margin:0;color:#b3a893;font-size:11px;line-height:1.6">Esta é uma mensagem automática. Não é possível responder este e-mail.</p>
+            </td>
+          </tr>
+
+        </table>
+      </td>
+    </tr>
+  </table>
 </body>
 </html>`
 }
 
+function p(text: string): string {
+  return `<p style="color:#4b463c;font-size:14px;line-height:1.6;margin:0 0 16px">${text}</p>`
+}
+
 function row(label: string, value: string): string {
   return `<tr>
-    <td style="padding:8px 12px;background:#f3f4f6;color:#6b7280;font-size:13px;font-weight:600;width:38%;border-radius:4px 0 0 4px">${label}</td>
-    <td style="padding:8px 12px;color:#111827;font-size:13px;border-radius:0 4px 4px 0">${value}</td>
+    <td style="padding:10px 14px;background:#f7f3ea;color:#8a7f6b;font-size:12px;font-weight:600;width:38%;border-radius:6px 0 0 6px;vertical-align:top">${label}</td>
+    <td style="padding:10px 14px;background:#f7f3ea;color:#1c1710;font-size:13px;border-radius:0 6px 6px 0;vertical-align:top">${value}</td>
   </tr>`
 }
 
 function table(rows: string): string {
-  return `<table width="100%" cellpadding="0" cellspacing="4" style="border-collapse:separate;border-spacing:0 4px;margin:16px 0">${rows}</table>`
+  return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:separate;border-spacing:0 4px;margin:4px 0 18px">${rows}</table>`
 }
 
 function btn(label: string, href: string): string {
-  return `<a href="${href}" style="display:inline-block;margin-top:20px;padding:12px 24px;background:#c9a84c;color:#fff;text-decoration:none;border-radius:6px;font-weight:700;font-size:14px">${label}</a>`
+  return `<table role="presentation" cellpadding="0" cellspacing="0" style="margin:22px 0 6px">
+    <tr><td style="border-radius:8px;background:#a98549">
+      <a href="${href}" style="display:inline-block;padding:13px 28px;color:#0a0908;text-decoration:none;border-radius:8px;font-weight:700;font-size:14px">${label}</a>
+    </td></tr>
+  </table>`
 }
 
-function alert(text: string, color = '#f59e0b'): string {
-  return `<div style="border-left:4px solid ${color};background:${color}18;padding:12px 16px;border-radius:0 6px 6px 0;margin-bottom:16px;color:#374151;font-size:14px">${text}</div>`
+function linkFallback(href: string): string {
+  return `<p style="margin:8px 0 0;color:#a39a89;font-size:12px;line-height:1.6">Se o botão não funcionar, copie e cole este link no navegador:<br><a href="${href}" style="color:#8a6c39;word-break:break-all">${href}</a></p>`
+}
+
+function alert(text: string, color = '#c9962c'): string {
+  return `<div style="border-left:3px solid ${color};background:${color}14;padding:12px 16px;border-radius:0 8px 8px 0;margin-bottom:18px;color:#4b463c;font-size:13px;line-height:1.55">${text}</div>`
+}
+
+// ─── Código de verificação em destaque (OTP) ──────────────────────────────
+function otpBox(code: string): string {
+  return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:8px 0 20px">
+    <tr><td align="center">
+      <table role="presentation" cellpadding="0" cellspacing="0" style="background:#faf6ea;border:1.5px solid #e6d7ac;border-radius:12px">
+        <tr><td style="padding:18px 30px">
+          <span style="font-family:'Courier New',Courier,monospace;font-size:32px;font-weight:700;letter-spacing:10px;color:#1c1710">${code}</span>
+        </td></tr>
+      </table>
+    </td></tr>
+  </table>`
+}
+
+// ─── Autenticação: código de verificação (cadastro / reenvio) ────────────────
+export function tplOtpVerification(data: { code: string; expiryMinutes: number }): { subject: string; html: string } {
+  const body = `
+    ${p('Use o código abaixo para confirmar seu e-mail e concluir o cadastro na Serra Experience.')}
+    ${otpBox(data.code)}
+    ${alert(`Este código expira em <strong>${data.expiryMinutes} minutos</strong>. Se você não solicitou este cadastro, pode ignorar este e-mail com segurança.`)}
+  `
+  return { subject: 'Seu código de verificação — Serra Experience', html: shell('Confirme seu e-mail', body) }
+}
+
+// ─── Autenticação: redefinição de senha ──────────────────────────────────────
+export function tplPasswordReset(data: { resetUrl: string; expiryMinutes: number }): { subject: string; html: string } {
+  const hours = Math.round(data.expiryMinutes / 60)
+  let expiryText = `${data.expiryMinutes} minutos`
+  if (hours >= 1) expiryText = hours === 1 ? '1 hora' : `${hours} horas`
+  const body = `
+    ${p('Recebemos uma solicitação para redefinir a senha da sua conta na Serra Experience.')}
+    ${btn('Redefinir minha senha', data.resetUrl)}
+    ${linkFallback(data.resetUrl)}
+    ${alert(`Este link expira em <strong>${expiryText}</strong>. Se você não solicitou a troca de senha, pode ignorar este e-mail com segurança.`, '#9b3030')}
+  `
+  return { subject: 'Redefinição de senha — Serra Experience', html: shell('Redefinir sua senha', body) }
 }
 
 // ─── A1: Novo motorista aguardando aprovação ──────────────────────────────────
@@ -52,7 +141,7 @@ export function tplNovoMotorista(data: {
 }): { subject: string; html: string } {
   const date = data.registeredAt.toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })
   const body = `
-    <p style="color:#374151;font-size:14px;margin:0 0 16px">Um novo motorista se cadastrou e aguarda aprovação para começar a operar.</p>
+    ${p('Um novo motorista se cadastrou e aguarda aprovação para começar a operar.')}
     ${table(
       row('Nome', data.driverName) +
       row('E-mail', data.driverEmail) +
@@ -73,7 +162,7 @@ export function tplVeiculoEmRevisao(data: {
 }): { subject: string; html: string } {
   const fields = data.changedFields.join(', ')
   const body = `
-    <p style="color:#374151;font-size:14px;margin:0 0 16px">Um motorista aprovado alterou dados do seu veículo. O cadastro foi marcado como <strong>Em Revisão</strong>.</p>
+    ${p('Um motorista aprovado alterou dados do seu veículo. O cadastro foi marcado como <strong>Em Revisão</strong>.')}
     ${table(
       row('Motorista', data.driverName) +
       row('E-mail', data.driverEmail) +
@@ -92,7 +181,7 @@ export function tplDocumentoEnviado(data: {
   userId: string
 }): { subject: string; html: string } {
   const body = `
-    <p style="color:#374151;font-size:14px;margin:0 0 16px">Um usuário enviou um documento de identidade e aguarda verificação.</p>
+    ${p('Um usuário enviou um documento de identidade e aguarda verificação.')}
     ${table(
       row('Usuário', data.userName) +
       row('E-mail', data.userEmail)
@@ -120,9 +209,9 @@ export function tplFalhaPagamento(data: {
   if (data.receivedAmount !== undefined) rows.push(row('Valor recebido', `R$ ${data.receivedAmount.toFixed(2)}`))
 
   const body = `
-    <p style="color:#374151;font-size:14px;margin:0 0 16px">Uma anomalia foi detectada no processamento de pagamento. Verifique o log de pagamentos imediatamente.</p>
+    ${p('Uma anomalia foi detectada no processamento de pagamento. Verifique o log de pagamentos imediatamente.')}
     ${table(rows.join(''))}
-    ${alert('Esta situação pode indicar tentativa de fraude ou inconsistência na integração PicPay. Revise antes de confirmar a viagem.', '#ef4444')}
+    ${alert('Esta situação pode indicar tentativa de fraude ou inconsistência na integração PicPay. Revise antes de confirmar a viagem.', '#9b3030')}
     ${btn('Ver logs de pagamento', `${BASE_URL}/admin/payments`)}
   `
   return { subject: '⚠️ Alerta: falha em pagamento', html: shell('Problema em pagamento detectado', body) }
@@ -143,7 +232,7 @@ export function tplViagemCancelada(data: {
   const who = { PASSENGER: 'Passageiro', DRIVER: 'Motorista', ADMIN: 'Administrador' }[data.cancelledBy]
   const scheduled = data.scheduledAt.toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })
   const body = `
-    <p style="color:#374151;font-size:14px;margin:0 0 16px">Uma viagem foi cancelada por <strong>${who}</strong>.</p>
+    ${p(`Uma viagem foi cancelada por <strong>${who}</strong>.`)}
     ${table(
       row('ID da viagem', data.tripId) +
       row('Cancelado por', who) +
@@ -154,10 +243,36 @@ export function tplViagemCancelada(data: {
       row('Agendada para', scheduled) +
       row('Motivo', data.cancelReason || '—')
     )}
-    ${data.hadPayment ? alert('Esta viagem havia sido paga. O reembolso foi marcado automaticamente. Verifique se o estorno foi processado.', '#ef4444') : ''}
+    ${data.hadPayment ? alert('Esta viagem havia sido paga. O reembolso foi marcado automaticamente. Verifique se o estorno foi processado.', '#9b3030') : ''}
     ${btn('Ver detalhes da viagem', `${BASE_URL}/admin/trips`)}
   `
   return { subject: '❌ Viagem cancelada', html: shell('Viagem cancelada', body) }
+}
+
+// ─── A6: Viagem recusada pelo motorista ───────────────────────────────────────
+export function tplViagemRecusada(data: {
+  driverName: string
+  passengerName: string
+  origin: string
+  destination: string
+  scheduledAt: Date
+  reason?: string
+}): { subject: string; html: string } {
+  const scheduled = data.scheduledAt.toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })
+  const body = `
+    ${p(`<strong>${data.driverName}</strong> recusou uma viagem já atribuída. É necessário encontrar outro motorista.`)}
+    ${table(
+      row('Motorista', data.driverName) +
+      row('Passageiro', data.passengerName) +
+      row('Origem', data.origin) +
+      row('Destino', data.destination) +
+      row('Agendada para', scheduled) +
+      (data.reason ? row('Motivo', data.reason) : '')
+    )}
+    ${alert('Esta viagem precisa de um novo motorista o quanto antes.', '#9b3030')}
+    ${btn('Gerenciar orçamentos', `${BASE_URL}/admin/quotes`)}
+  `
+  return { subject: '⚠️ Viagem recusada — ação necessária', html: shell('Viagem recusada pelo motorista', body) }
 }
 
 // ─── U10: Lembrete de viagem confirmada (motorista) ──────────────────────────
@@ -175,8 +290,8 @@ export function tplLembreteViagemMotorista(data: {
     ? 'Você tem uma viagem agendada para amanhã.'
     : 'Sua viagem começa em aproximadamente 1 hora.'
   const body = `
-    <p style="color:#374151;font-size:14px;margin:0 0 16px">Olá, <strong>${data.driverName}</strong>!</p>
-    <p style="color:#374151;font-size:14px;margin:0 0 16px">${headline}</p>
+    ${p(`Olá, <strong>${data.driverName}</strong>!`)}
+    ${p(headline)}
     ${table(
       row('Passageiro', data.passengerName) +
       row('Origem', data.origin) +
@@ -198,18 +313,18 @@ export function tplMotoristaAprovado(data: {
 }): { subject: string; html: string } {
   if (data.approved) {
     const body = `
-      <p style="color:#374151;font-size:14px;margin:0 0 16px">Olá, <strong>${data.driverName}</strong>!</p>
-      <p style="color:#374151;font-size:14px;margin:0 0 16px">Sua conta de motorista foi <strong>aprovada</strong>. Você já pode receber corridas pela plataforma.</p>
-      ${alert('Acesse o aplicativo, habilite sua disponibilidade e comece a receber orçamentos.', '#10b981')}
+      ${p(`Olá, <strong>${data.driverName}</strong>!`)}
+      ${p('Sua conta de motorista foi <strong>aprovada</strong>. Você já pode receber corridas pela plataforma.')}
+      ${alert('Acesse o aplicativo, habilite sua disponibilidade e comece a receber orçamentos.', '#2e7d5e')}
       ${btn('Acessar plataforma', BASE_URL)}
     `
     return { subject: '✅ Sua conta de motorista foi aprovada!', html: shell('Conta aprovada — bem-vindo!', body) }
   }
 
   const body = `
-    <p style="color:#374151;font-size:14px;margin:0 0 16px">Olá, <strong>${data.driverName}</strong>!</p>
-    <p style="color:#374151;font-size:14px;margin:0 0 16px">Após análise, sua conta de motorista <strong>não foi aprovada</strong> neste momento.</p>
-    ${alert('Se acredita que houve um engano ou deseja mais informações, entre em contato com nosso suporte.', '#ef4444')}
+    ${p(`Olá, <strong>${data.driverName}</strong>!`)}
+    ${p('Após análise, sua conta de motorista <strong>não foi aprovada</strong> neste momento.')}
+    ${alert('Se acredita que houve um engano ou deseja mais informações, entre em contato com nosso suporte.', '#9b3030')}
     ${btn('Falar com suporte', BASE_URL)}
   `
   return { subject: '❌ Conta de motorista não aprovada', html: shell('Resultado da avaliação', body) }
@@ -227,8 +342,8 @@ export function tplViagemConfirmadaPassageiro(data: {
 }): { subject: string; html: string } {
   const scheduled = data.scheduledAt.toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })
   const body = `
-    <p style="color:#374151;font-size:14px;margin:0 0 16px">Olá, <strong>${data.passengerName}</strong>!</p>
-    <p style="color:#374151;font-size:14px;margin:0 0 16px">Sua viagem foi <strong>confirmada</strong> e já tem motorista definido.</p>
+    ${p(`Olá, <strong>${data.passengerName}</strong>!`)}
+    ${p('Sua viagem foi <strong>confirmada</strong> e já tem motorista definido.')}
     ${table(
       row('Motorista', data.driverName) +
       row('Veículo', data.vehicleInfo) +
@@ -236,7 +351,7 @@ export function tplViagemConfirmadaPassageiro(data: {
       row('Destino', data.destination) +
       row('Agendada para', scheduled)
     )}
-    ${alert('O pagamento é acertado diretamente com a central, fora do site.', '#10b981')}
+    ${alert('O pagamento é acertado diretamente com a central, fora do site.', '#2e7d5e')}
     ${btn('Ver minha viagem', `${BASE_URL}/trips/${data.tripId}`)}
   `
   return { subject: '✅ Sua viagem foi confirmada!', html: shell('Viagem confirmada', body) }
@@ -249,9 +364,9 @@ export function tplViagemConcluidaPassageiro(data: {
   driverName: string
 }): { subject: string; html: string } {
   const body = `
-    <p style="color:#374151;font-size:14px;margin:0 0 16px">Olá, <strong>${data.passengerName}</strong>!</p>
-    <p style="color:#374151;font-size:14px;margin:0 0 16px">Sua viagem com <strong>${data.driverName}</strong> foi concluída. Esperamos que tenha sido uma ótima experiência!</p>
-    ${alert('Sua avaliação ajuda a manter a qualidade do serviço — leva menos de 1 minuto.', '#10b981')}
+    ${p(`Olá, <strong>${data.passengerName}</strong>!`)}
+    ${p(`Sua viagem com <strong>${data.driverName}</strong> foi concluída. Esperamos que tenha sido uma ótima experiência!`)}
+    ${alert('Sua avaliação ajuda a manter a qualidade do serviço — leva menos de 1 minuto.', '#2e7d5e')}
     ${btn('Avaliar viagem', `${BASE_URL}/trips/${data.tripId}/review`)}
   `
   return { subject: '⭐ Como foi sua viagem? Avalie agora', html: shell('Viagem concluída', body) }
@@ -267,11 +382,11 @@ export function tplNovaAvaliacao(data: {
 }): { subject: string; html: string } {
   const stars = '★'.repeat(data.rating) + '☆'.repeat(5 - data.rating)
   const body = `
-    <p style="color:#374151;font-size:14px;margin:0 0 16px">Olá, <strong>${data.driverName}</strong>!</p>
-    <p style="color:#374151;font-size:14px;margin:0 0 16px">Você recebeu uma nova avaliação de <strong>${data.passengerName}</strong>.</p>
+    ${p(`Olá, <strong>${data.driverName}</strong>!`)}
+    ${p(`Você recebeu uma nova avaliação de <strong>${data.passengerName}</strong>.`)}
     ${table(
-      row('Nota', `<span style="color:#f59e0b;font-size:18px">${stars}</span> &nbsp;${data.rating}/5`) +
-      row('Comentário', data.comment || '<em style="color:#9ca3af">Sem comentário</em>') +
+      row('Nota', `<span style="color:#c9962c;font-size:18px">${stars}</span> &nbsp;${data.rating}/5`) +
+      row('Comentário', data.comment || '<em style="color:#a39a89">Sem comentário</em>') +
       row('Sua média atual', `${data.newAverage.toFixed(2)} / 5.00`)
     )}
     ${btn('Ver minhas avaliações', `${BASE_URL}/driver/profile`)}

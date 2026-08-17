@@ -27,6 +27,7 @@ import { prisma } from './common/config/prisma'
 const adminService = new AdminService()
 
 const app = express()
+app.set('trust proxy', 1)
 
 app.use(
   helmet({

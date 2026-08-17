@@ -2,10 +2,9 @@ import { prisma } from '../../common/config/prisma'
 import { AppError } from '../../common/middlewares/error.middleware'
 import { getPaginationParams, buildPaginationMeta } from '../../common/utils/pagination'
 import { sendMail } from '../../common/config/mailer'
-import { env } from '../../common/config/env'
 import { notifyAdmins } from '../../common/utils/notify-admins'
 import { isLicenseExpired, LICENSE_EXPIRED_MESSAGE } from '../../common/utils/license'
-import { tplViagemCancelada, tplNovaAvaliacao, tplViagemConfirmadaPassageiro, tplViagemConcluidaPassageiro, tplLembreteViagemMotorista } from '../../common/utils/email.templates'
+import { tplViagemCancelada, tplNovaAvaliacao, tplViagemConfirmadaPassageiro, tplViagemConcluidaPassageiro, tplLembreteViagemMotorista, tplViagemRecusada } from '../../common/utils/email.templates'
 import { enqueueNotification } from '../../common/config/queue'
 import type { UpdateTripStatusInput, CancelTripInput, ReviewInput } from './trip.schema'
 
@@ -237,29 +236,16 @@ export class TripService {
     const admin = await prisma.user.findFirst({ where: { role: 'ADMIN' } })
     if (!admin) return
 
-    const adminUrl = `${env.CORS_ORIGIN}/admin/quotes`
-    const scheduled = new Date(trip.scheduledAt).toLocaleString('pt-BR', {
-      dateStyle: 'short', timeStyle: 'short',
-    } as Intl.DateTimeFormatOptions)
-
-    await sendMail(
-      admin.email,
-      'Viagem recusada — ação necessária',
-      `
-        <h2 style="color:#a98549">Viagem recusada pelo motorista</h2>
-        <p><strong>Motorista:</strong> ${driverName}</p>
-        <p><strong>Passageiro:</strong> ${trip.passenger.name}</p>
-        <p><strong>Rota:</strong> ${trip.originAddress} → ${trip.destinationAddress}</p>
-        <p><strong>Horário agendado:</strong> ${scheduled}</p>
-        ${reason ? `<p><strong>Motivo:</strong> ${reason}</p>` : ''}
-        <p style="margin-top:20px">
-          <a href="${adminUrl}" style="background:#a98549;color:#fff;padding:10px 20px;border-radius:6px;text-decoration:none">
-            Gerenciar orçamentos
-          </a>
-        </p>
-        <p style="color:#888;font-size:12px;margin-top:16px">Serra Experience — Painel Administrativo</p>
-      `
-    )
+    const scheduled = new Date(trip.scheduledAt)
+    const { subject, html } = tplViagemRecusada({
+      driverName,
+      passengerName: trip.passenger.name,
+      origin: trip.originAddress,
+      destination: trip.destinationAddress,
+      scheduledAt: scheduled,
+      reason,
+    })
+    await sendMail(admin.email, subject, html)
   }
 
   async cancelTrip(tripId: string, userId: string, role: string, data: CancelTripInput) {
