@@ -8,8 +8,9 @@ import { sendMail } from '../../common/config/mailer'
 import { tplMotoristaAprovado } from '../../common/utils/email.templates'
 
 type VehicleStatus = 'PENDING' | 'APPROVED' | 'REVIEW_PENDING'
+type DriverApprovalStatus = 'PENDING' | 'APPROVED' | 'REJECTED'
 
-type DriverProfileUpdateData = { isApproved?: boolean; vehicleStatus?: VehicleStatus }
+type DriverProfileUpdateData = { isApproved?: boolean; approvalStatus?: DriverApprovalStatus; vehicleStatus?: VehicleStatus }
 
 const defaultSettings = {
   id: 1,
@@ -119,10 +120,12 @@ export class AdminService {
     })
   }
 
-  async listDrivers(approved?: boolean, vehicleStatus?: string, page = 1, limit = 20) {
+  async listDrivers(status?: DriverApprovalStatus, vehicleStatus?: string, page = 1, limit = 20) {
     const { take, skip } = getPaginationParams(page, limit)
     const where: Record<string, unknown> = {}
-    if (approved !== undefined) where.isApproved = approved
+    // Sem filtro explícito, "Todos" mostra só o pipeline ativo (pendentes + aprovados) —
+    // motoristas bloqueados ficam de fora e só aparecem na aba dedicada.
+    where.approvalStatus = status ?? { not: 'REJECTED' }
     if (vehicleStatus) where.vehicleStatus = vehicleStatus
 
     const [drivers, total] = await Promise.all([
@@ -138,46 +141,50 @@ export class AdminService {
       prisma.driverProfile.count({ where }),
     ])
 
-    const totalAll      = await prisma.driverProfile.count()
-    const totalPending  = await prisma.driverProfile.count({ where: { isApproved: false } })
-    const totalApproved = await prisma.driverProfile.count({ where: { isApproved: true } })
-    // cast needed until TS server reloads after prisma generate
-    const totalVehicleReview = await prisma.driverProfile.count({ where: { vehicleStatus: 'REVIEW_PENDING' } as any })
+    const totalPending  = await prisma.driverProfile.count({ where: { approvalStatus: 'PENDING' } })
+    const totalApproved = await prisma.driverProfile.count({ where: { approvalStatus: 'APPROVED' } })
+    const totalRejected = await prisma.driverProfile.count({ where: { approvalStatus: 'REJECTED' } })
+    const totalVehicleReview = await prisma.driverProfile.count({ where: { vehicleStatus: 'REVIEW_PENDING' } })
 
     return {
       drivers,
       meta: buildPaginationMeta(total, page, take),
-      totalAll,
+      totalActive: totalPending + totalApproved,
       totalPending,
       totalApproved,
+      totalRejected,
       totalVehicleReview,
     }
   }
 
-  async approveDriver(driverProfileId: string, approved: boolean) {
+  async setDriverApprovalStatus(driverProfileId: string, status: DriverApprovalStatus) {
     const driver = await prisma.driverProfile.findUnique({
       where: { id: driverProfileId },
-      select: { id: true, isApproved: true, vehicleStatus: true },
+      select: { id: true, approvalStatus: true, vehicleStatus: true },
     })
     if (!driver) throw Object.assign(new Error('Motorista não encontrado'), { statusCode: 404 })
-    if (driver.isApproved === approved) {
+    if (driver.approvalStatus === status) {
       return prisma.driverProfile.findUnique({
         where: { id: driverProfileId },
-        select: { id: true, isApproved: true, vehicleStatus: true, user: { select: { name: true, email: true } } },
+        select: { id: true, approvalStatus: true, isApproved: true, vehicleStatus: true, user: { select: { name: true, email: true } } },
       })
     }
-    const data: DriverProfileUpdateData = { isApproved: approved }
-    if (approved && driver.vehicleStatus === 'PENDING') {
+    const data: DriverProfileUpdateData = { approvalStatus: status, isApproved: status === 'APPROVED' }
+    if (status === 'APPROVED' && driver.vehicleStatus === 'PENDING') {
       data.vehicleStatus = 'APPROVED'
     }
     const updated = await prisma.driverProfile.update({
       where: { id: driverProfileId },
       data,
-      select: { id: true, isApproved: true, vehicleStatus: true, user: { select: { name: true, email: true } } },
+      select: { id: true, approvalStatus: true, isApproved: true, vehicleStatus: true, user: { select: { name: true, email: true } } },
     })
 
-    const { subject, html } = tplMotoristaAprovado({ driverName: updated.user.name, approved })
-    sendMail(updated.user.email, subject, html).catch(() => {})
+    // Reativar (REJECTED -> PENDING) apenas devolve o motorista à fila de revisão,
+    // sem enviar o e-mail de resultado — a decisão final ainda não foi tomada.
+    if (status === 'APPROVED' || status === 'REJECTED') {
+      const { subject, html } = tplMotoristaAprovado({ driverName: updated.user.name, approved: status === 'APPROVED' })
+      sendMail(updated.user.email, subject, html).catch(() => {})
+    }
 
     return updated
   }
@@ -390,7 +397,7 @@ export class AdminService {
         },
       }),
       prisma.driverProfile.findMany({
-        where: { isApproved: false },
+        where: { approvalStatus: 'PENDING' },
         select: {
           id: true,
           vehicleMake: true,
