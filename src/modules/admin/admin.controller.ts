@@ -5,6 +5,30 @@ import { QuoteService } from '../quote/quote.service'
 const service = new AdminService()
 const quoteService = new QuoteService()
 
+const YOUTUBE_HOSTS = new Set(['youtube.com', 'www.youtube.com', 'm.youtube.com', 'youtu.be'])
+
+function extractYoutubeVideoId(url: string): string | null {
+  let parsed: URL
+  try {
+    parsed = new URL(url)
+  } catch {
+    return null
+  }
+  if (!YOUTUBE_HOSTS.has(parsed.hostname)) return null
+
+  if (parsed.hostname === 'youtu.be') {
+    const id = parsed.pathname.slice(1)
+    return id || null
+  }
+  if (parsed.pathname === '/watch') {
+    return parsed.searchParams.get('v')
+  }
+  const embedMatch = parsed.pathname.match(/^\/(embed|shorts)\/([^/]+)$/)
+  if (embedMatch) return embedMatch[2]
+
+  return null
+}
+
 export class AdminController {
   async createAdmin(req: Request, res: Response) {
     const { name, email, password } = req.body
@@ -77,6 +101,17 @@ export class AdminController {
         return
       }
       body.assignLinkExpiryHours = Math.round(hours)
+    }
+    if (body.youtubeVideoUrl !== undefined) {
+      const raw = typeof body.youtubeVideoUrl === 'string' ? body.youtubeVideoUrl.trim() : ''
+      if (!raw) {
+        body.youtubeVideoUrl = null
+      } else if (!extractYoutubeVideoId(raw)) {
+        res.status(400).json({ error: 'URL do YouTube inválida' })
+        return
+      } else {
+        body.youtubeVideoUrl = raw
+      }
     }
     const data = await service.updateSettings(body)
     res.json(data)
