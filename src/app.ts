@@ -41,6 +41,7 @@ app.use(
         fontSrc: ["'self'"],
         objectSrc: ["'none'"],
         frameAncestors: ["'none'"],
+        frameSrc: ["'self'", 'https://www.youtube-nocookie.com'],
       },
     },
     crossOriginEmbedderPolicy: false,
@@ -133,7 +134,12 @@ if (INDEXNOW_KEY) {
 app.get('/api/settings', async (_req, res) => {
   try {
     const s = await adminService.getSettings()
-    res.json({ whatsapp: s.whatsapp ?? null, siteName: s.siteName, baseAddress: s.baseAddress ?? null })
+    res.json({
+      whatsapp: s.whatsapp ?? null,
+      siteName: s.siteName,
+      baseAddress: s.baseAddress ?? null,
+      youtubeVideoUrl: s.youtubeVideoUrl ?? null,
+    })
   } catch {
     res.status(500).json({ error: 'Erro ao buscar configurações' })
   }

@@ -377,6 +377,7 @@ model Settings {
   baseLat        Decimal? @db.Decimal(10, 8)
   baseLng        Decimal? @db.Decimal(11, 8)
   assignLinkExpiryHours Int @default(24)
+  youtubeVideoUrl String?
   updatedAt      DateTime @updatedAt
 
   @@map("settings")

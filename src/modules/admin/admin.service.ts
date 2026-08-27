@@ -25,6 +25,7 @@ const defaultSettings = {
   baseLat: null,
   baseLng: null,
   assignLinkExpiryHours: 24,
+  youtubeVideoUrl: null,
   updatedAt: new Date(),
 }
 
@@ -221,6 +222,7 @@ export class AdminService {
     baseLat?: number | null
     baseLng?: number | null
     assignLinkExpiryHours?: number
+    youtubeVideoUrl?: string | null
   }) {
     return prisma.settings.upsert({
       where: { id: 1 },
