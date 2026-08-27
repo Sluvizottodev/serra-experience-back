@@ -534,7 +534,7 @@ model InfluencerEventLink {
 
   trackingEvents TrackingEvent[]
 
-  @@unique([influencerId, eventId])
+  @@index([influencerId, eventId])
   @@index([eventId])
   @@map("influencer_event_links")
 }

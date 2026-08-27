@@ -55,11 +55,7 @@ export class InfluencerService {
     const event = await prisma.event.findUnique({ where: { id: eventId } })
     if (!event) throw new AppError(404, 'Evento não encontrado')
 
-    const existing = await prisma.influencerEventLink.findUnique({
-      where: { influencerId_eventId: { influencerId, eventId } },
-    })
-    if (existing) return existing
-
+    // Múltiplos links são permitidos para o mesmo par influenciador+evento
     let code: string
     if (customCode) {
       const taken = await prisma.influencerEventLink.findUnique({ where: { code: customCode }, select: { id: true } })
