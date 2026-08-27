@@ -68,6 +68,12 @@ enum VehicleStatus {
   REVIEW_PENDING
 }
 
+enum DriverApprovalStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
 enum ConditionType {
   DISTANCE_FROM_BASE_KM
   TRIP_TOTAL_KM
@@ -158,6 +164,7 @@ model DriverProfile {
   totalTrips      Int           @default(0)
   isAvailable     Boolean       @default(true)
   isApproved      Boolean       @default(false)
+  approvalStatus  DriverApprovalStatus @default(PENDING)
   baseRatePerKm   Decimal?      @db.Decimal(10, 2)
   baseRatePerHour Decimal?      @db.Decimal(10, 2)
   vehiclePhotoUrl String?
@@ -427,6 +434,7 @@ model Event {
 
   dateSlots EventDateSlot[]
   bookings  EventBooking[]
+  influencerLinks InfluencerEventLink[]
 
   @@map("events")
 }
@@ -492,6 +500,61 @@ model Partner {
   updatedAt     DateTime @updatedAt
 
   @@map("partners")
+}
+
+enum TrackingEventType {
+  VIEW
+  CONVERSION
+}
+
+model Influencer {
+  id        String   @id @default(uuid())
+  name      String
+  handle    String?
+  notes     String?
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  links InfluencerEventLink[]
+
+  @@map("influencers")
+}
+
+model InfluencerEventLink {
+  id           String   @id @default(uuid())
+  code         String   @unique
+  influencerId String
+  influencer   Influencer @relation(fields: [influencerId], references: [id], onDelete: Cascade)
+  eventId      String?
+  event        Event?     @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  active       Boolean    @default(true)
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  trackingEvents TrackingEvent[]
+
+  @@unique([influencerId, eventId])
+  @@index([eventId])
+  @@map("influencer_event_links")
+}
+
+model TrackingEvent {
+  id           String              @id @default(uuid())
+  type         TrackingEventType
+  linkId       String
+  link         InfluencerEventLink @relation(fields: [linkId], references: [id], onDelete: Cascade)
+  eventId      String?
+  influencerId String
+  visitorId    String?
+  createdAt    DateTime            @default(now())
+
+  @@index([linkId])
+  @@index([eventId])
+  @@index([influencerId])
+  @@index([createdAt])
+  @@index([type, linkId])
+  @@map("tracking_events")
 }
 
 enum TestimonialType {

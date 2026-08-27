@@ -66,20 +66,24 @@ export class AdminController {
   }
 
   async listDrivers(req: Request, res: Response) {
-    const approved = req.query.approved === undefined ? undefined : req.query.approved === 'true'
+    const APPROVAL_STATUSES = ['PENDING', 'APPROVED', 'REJECTED'] as const
+    const rawStatus = typeof req.query.status === 'string' ? req.query.status.toUpperCase() : undefined
+    const status = APPROVAL_STATUSES.includes(rawStatus as typeof APPROVAL_STATUSES[number])
+      ? (rawStatus as typeof APPROVAL_STATUSES[number])
+      : undefined
     const vehicleStatus = typeof req.query.vehicleStatus === 'string' ? req.query.vehicleStatus : undefined
-    const data = await service.listDrivers(approved, vehicleStatus, Number(req.query.page) || 1, Number(req.query.limit) || 20)
+    const data = await service.listDrivers(status, vehicleStatus, Number(req.query.page) || 1, Number(req.query.limit) || 20)
     res.json(data)
   }
 
   async approveDriver(req: Request, res: Response) {
-    const { approved } = req.body
-    if (typeof approved === 'boolean') {
-      const data = await service.approveDriver(String(req.params.id), approved)
+    const { status } = req.body
+    if (['PENDING', 'APPROVED', 'REJECTED'].includes(status)) {
+      const data = await service.setDriverApprovalStatus(String(req.params.id), status)
       res.json(data)
       return
     }
-    res.status(400).json({ error: 'approved deve ser booleano' })
+    res.status(400).json({ error: 'status deve ser PENDING, APPROVED ou REJECTED' })
   }
 
   async approveVehicle(req: Request, res: Response) {

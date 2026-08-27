@@ -21,6 +21,7 @@ import { testimonialRoutes } from './modules/testimonial/testimonial.routes'
 import { tripParameterRoutes } from './modules/trip-parameter/trip-parameter.routes'
 import { metricsRoutes } from './modules/metrics/metrics.routes'
 import { notificationRoutes } from './modules/notification/notification.routes'
+import { influencerRoutes } from './modules/influencer/influencer.routes'
 import { AdminService } from './modules/admin/admin.service'
 import { prisma } from './common/config/prisma'
 
@@ -181,6 +182,7 @@ app.use('/api/admin/reports', reportRoutes)
 app.use('/api/messages', messageRoutes)
 app.use('/api/trip-parameters', tripParameterRoutes)
 app.use('/api/metrics', metricsRoutes)
+app.use('/api/influencers', influencerRoutes)
 
 app.use(errorHandler)
 
