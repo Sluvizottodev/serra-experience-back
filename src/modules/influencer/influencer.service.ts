@@ -112,6 +112,15 @@ export class InfluencerService {
     return prisma.influencerEventLink.findUnique({ where: { code } })
   }
 
+  async getPublicLinkInfo(code: string) {
+    const link = await prisma.influencerEventLink.findUnique({
+      where: { code },
+      include: { influencer: { select: { name: true, active: true } } },
+    })
+    if (!link || !link.active || !link.influencer.active) return null
+    return { influencerName: link.influencer.name }
+  }
+
   async trackView(code: string, visitorId?: string) {
     const link = await this.getLinkByCode(code)
     if (!link || !link.active) return

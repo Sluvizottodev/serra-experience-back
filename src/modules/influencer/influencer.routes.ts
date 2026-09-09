@@ -14,6 +14,7 @@ const wrap = (fn: Function) => (req: any, res: any, next: any) =>
   })
 
 // públicas — sem auth; nunca devem quebrar a página pública mesmo com dados inválidos
+router.get('/public/link/:code', wrap(controller.getPublicLinkInfo))
 router.post('/track/view', wrap(controller.trackView))
 router.post('/track/conversion', wrap(controller.trackConversion))
 
