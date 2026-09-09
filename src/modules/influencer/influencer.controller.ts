@@ -47,6 +47,13 @@ export class InfluencerController {
     res.json(links)
   }
 
+  async getPublicLinkInfo(req: Request, res: Response) {
+    const code = String(req.params.code ?? '')
+    const info = code ? await service.getPublicLinkInfo(code) : null
+    if (!info) return res.status(404).json({ error: 'Link não encontrado' })
+    res.json(info)
+  }
+
   async trackView(req: Request, res: Response) {
     const { code, visitorId } = req.body
     if (typeof code === 'string' && code) {
