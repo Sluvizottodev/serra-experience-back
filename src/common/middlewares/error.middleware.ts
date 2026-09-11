@@ -4,6 +4,7 @@ const UNIQUE_FIELD_LABELS: Record<string, string> = {
   vehiclePlate: 'Esta placa já está cadastrada para outro motorista',
   email: 'Este e-mail já está em uso',
   phone: 'Este telefone já está em uso',
+  cpf: 'Este CPF já está cadastrado para outro usuário',
   licenseNumber: 'Este número de CNH já está cadastrado para outro motorista',
 }
 

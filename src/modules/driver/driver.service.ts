@@ -3,7 +3,7 @@ import { cloudinary } from '../../common/config/cloudinary'
 import { AppError } from '../../common/middlewares/error.middleware'
 import { getPaginationParams, buildPaginationMeta } from '../../common/utils/pagination'
 import { notifyAdmins } from '../../common/utils/notify-admins'
-import { tplVeiculoEmRevisao } from '../../common/utils/email.templates'
+import { tplNovoMotorista, tplVeiculoEmRevisao } from '../../common/utils/email.templates'
 import type { CreateDriverProfileInput, UpdateDriverProfileInput, AvailabilityInput } from './driver.schema'
 
 const VEHICLE_FIELDS = [
@@ -141,7 +141,19 @@ export class DriverService {
     if (data.birthDate) createData.birthDate = new Date(data.birthDate)
     if (data.licenseExpiry) createData.licenseExpiry = new Date(data.licenseExpiry)
 
-    return prisma.driverProfile.create({ data: createData as any })
+    const profile = await prisma.driverProfile.create({
+      data: createData as any,
+      include: { user: { select: { name: true, email: true } } },
+    })
+
+    const { subject, html } = tplNovoMotorista({
+      driverName: profile.user.name,
+      driverEmail: profile.user.email,
+      registeredAt: profile.createdAt,
+    })
+    notifyAdmins(subject, html).catch(() => {})
+
+    return profile
   }
 
   async updateProfile(userId: string, data: UpdateDriverProfileInput) {

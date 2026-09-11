@@ -33,10 +33,7 @@ const forgotPasswordLimiter = rateLimit({
 })
 
 const wrap = (fn: Function) => (req: any, res: any, next: any) =>
-  Promise.resolve(fn.call(controller, req, res, next)).catch((err: any) => {
-    const status = err.statusCode ?? 400
-    res.status(status).json({ error: err.message })
-  })
+  Promise.resolve(fn.call(controller, req, res, next)).catch(next)
 
 router.post('/register', authLimiter, validate(registerSchema), wrap(controller.register))
 router.post('/login', authLimiter, validate(loginSchema), wrap(controller.login))

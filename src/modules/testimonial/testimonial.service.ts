@@ -1,5 +1,6 @@
 import { prisma } from '../../common/config/prisma'
 import { cloudinary } from '../../common/config/cloudinary'
+import { AppError } from '../../common/middlewares/error.middleware'
 import type { Prisma } from '@prisma/client'
 
 export class TestimonialService {
@@ -26,7 +27,7 @@ export class TestimonialService {
 
   async delete(id: string) {
     const testimonial = await prisma.testimonial.findUnique({ where: { id } })
-    if (!testimonial) throw Object.assign(new Error('Depoimento não encontrado'), { statusCode: 404 })
+    if (!testimonial) throw new AppError(404, 'Depoimento não encontrado')
     if (testimonial.imagePublicId) {
       await cloudinary.uploader.destroy(testimonial.imagePublicId).catch(() => null)
     }
@@ -35,7 +36,7 @@ export class TestimonialService {
 
   async uploadImage(id: string, fileBuffer: Buffer, mimetype: string) {
     const testimonial = await prisma.testimonial.findUnique({ where: { id } })
-    if (!testimonial) throw Object.assign(new Error('Depoimento não encontrado'), { statusCode: 404 })
+    if (!testimonial) throw new AppError(404, 'Depoimento não encontrado')
 
     if (testimonial.imagePublicId) {
       await cloudinary.uploader.destroy(testimonial.imagePublicId).catch(() => null)
@@ -49,7 +50,7 @@ export class TestimonialService {
       const stream = cloudinary.uploader.upload_stream(
         { folder: 'viagem-motorista/testimonials', resource_type: 'image', format: ext },
         (err, res) => {
-          if (err || !res) return reject(err instanceof Error ? err : new Error('Falha no upload da imagem'))
+          if (err || !res) return reject(new AppError(502, 'Falha no upload da imagem. Tente novamente.'))
           resolve({ secure_url: res.secure_url, public_id: res.public_id })
         },
       )
