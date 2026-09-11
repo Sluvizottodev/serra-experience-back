@@ -5,8 +5,7 @@ import { AppError } from '../../common/middlewares/error.middleware'
 import { signAccessToken, signRefreshToken, verifyRefreshToken } from '../../common/utils/jwt'
 import { generateOtp, generateSecureToken } from '../../common/utils/otp'
 import { encrypt } from '../../common/utils/crypto'
-import { notifyAdmins } from '../../common/utils/notify-admins'
-import { tplNovoMotorista, tplOtpVerification, tplPasswordReset } from '../../common/utils/email.templates'
+import { tplOtpVerification, tplPasswordReset } from '../../common/utils/email.templates'
 import type { RegisterInput, LoginInput, VerifyOtpInput, ForgotPasswordInput, ResetPasswordInput } from './auth.schema'
 
 const OTP_EXPIRY_MINUTES = 10
@@ -101,7 +100,7 @@ export class AuthService {
       if (pending.otpCode !== data.code) throw new AppError(400, 'Código de verificação inválido')
       if (pending.otpExpiresAt < new Date()) throw new AppError(400, 'Código de verificação expirado. Solicite um novo.')
 
-      const [user] = await prisma.$transaction([
+      await prisma.$transaction([
         prisma.user.create({
           data: {
             name: pending.name,
@@ -115,11 +114,6 @@ export class AuthService {
         }),
         prisma.pendingRegistration.delete({ where: { email: data.email } }),
       ])
-
-      if (pending.role === 'DRIVER') {
-        const { subject, html } = tplNovoMotorista({ driverName: user.name, driverEmail: user.email, registeredAt: user.createdAt })
-        notifyAdmins(subject, html).catch(() => {})
-      }
 
       return { message: 'E-mail verificado com sucesso. Cadastro concluído!' }
     }

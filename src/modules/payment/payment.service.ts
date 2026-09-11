@@ -6,6 +6,7 @@ import { PaymentLoggerService } from './payment.logger'
 import { decrypt } from '../../common/utils/crypto'
 import { notifyAdmins } from '../../common/utils/notify-admins'
 import { tplFalhaPagamento } from '../../common/utils/email.templates'
+import { AppError } from '../../common/middlewares/error.middleware'
 
 const logger = new PaymentLoggerService()
 const MAX_RETRIES = 3
@@ -53,11 +54,11 @@ async function picpayRequest<T>(
         responsePayload: axios.isAxiosError(err) ? (err.response?.data as Record<string, unknown>) : { message: String(err) },
         durationMs,
       })
-      if (isLast) throw err
+      if (isLast) throw new AppError(502, 'Não foi possível processar o pagamento no momento. Tente novamente em instantes.')
       await sleep(RETRY_DELAY_MS * attempt)
     }
   }
-  throw new Error('Max retries exceeded')
+  throw new AppError(502, 'Não foi possível processar o pagamento no momento. Tente novamente em instantes.')
 }
 
 export class PaymentService {
@@ -69,10 +70,10 @@ export class PaymentService {
         payment: true,
       },
     })
-    if (!trip) throw new Error('Viagem não encontrada')
-    if (trip.passengerId !== passengerId) throw new Error('Acesso negado')
-    if (trip.status === 'CANCELLED') throw new Error('Viagem cancelada')
-    if (trip.payment?.status === 'PAID') throw new Error('Viagem já paga')
+    if (!trip) throw new AppError(404, 'Viagem não encontrada')
+    if (trip.passengerId !== passengerId) throw new AppError(403, 'Acesso negado')
+    if (trip.status === 'CANCELLED') throw new AppError(409, 'Viagem cancelada')
+    if (trip.payment?.status === 'PAID') throw new AppError(409, 'Viagem já paga')
 
     const referenceId = trip.payment?.externalTransactionId || uuid()
 
@@ -121,11 +122,11 @@ export class PaymentService {
         driverProfile: { select: { userId: true } },
       },
     })
-    if (!trip) throw new Error('Viagem não encontrada')
+    if (!trip) throw new AppError(404, 'Viagem não encontrada')
 
     const isPassenger = trip.passengerId === userId
     const isDriver = trip.driverProfile?.userId === userId
-    if (!isPassenger && !isDriver) throw new Error('Acesso negado')
+    if (!isPassenger && !isDriver) throw new AppError(403, 'Acesso negado')
 
     return trip.payment
   }
@@ -133,7 +134,7 @@ export class PaymentService {
   async handleWebhook(body: Record<string, unknown>, sellerToken: string | undefined) {
     if (!env.PICPAY_SELLER_TOKEN || sellerToken !== env.PICPAY_SELLER_TOKEN) {
       await logger.log({ operationType: 'WEBHOOK', status: '401', severity: 'WARN', requestPayload: { reason: 'invalid_seller_token' } })
-      throw Object.assign(new Error('Unauthorized'), { statusCode: 401 })
+      throw new AppError(401, 'Unauthorized')
     }
 
     const { referenceId, authorizationId, status } = body
@@ -179,7 +180,7 @@ export class PaymentService {
         receivedAmount,
       })
       notifyAdmins(subject, html).catch(() => {})
-      throw Object.assign(new Error('Payment amount mismatch'), { statusCode: 400 })
+      throw new AppError(400, 'Payment amount mismatch')
     }
 
     await prisma.$transaction([

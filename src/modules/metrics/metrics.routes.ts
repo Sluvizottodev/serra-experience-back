@@ -6,9 +6,7 @@ const router = Router()
 const controller = new MetricsController()
 
 const wrap = (fn: Function) => (req: any, res: any, next: any) =>
-  Promise.resolve(fn.call(controller, req, res, next)).catch(err =>
-    res.status(400).json({ error: err.message })
-  )
+  Promise.resolve(fn.call(controller, req, res, next)).catch(next)
 
 // Endpoints públicos (sem auth) — coleta de sessão do visitante
 router.post('/session/start', wrap(controller.sessionStart))

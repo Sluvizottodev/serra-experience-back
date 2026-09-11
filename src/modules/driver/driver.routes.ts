@@ -13,10 +13,7 @@ const router = Router()
 const controller = new DriverController()
 
 const wrap = (fn: Function) => (req: any, res: any, next: any) =>
-  Promise.resolve(fn.call(controller, req, res, next)).catch((err: any) => {
-    const status = err.statusCode ?? 400
-    res.status(status).json({ error: err.message })
-  })
+  Promise.resolve(fn.call(controller, req, res, next)).catch(next)
 
 // Protected driver routes — must be declared BEFORE /:id to avoid "me" being captured as param
 router.post('/profile', isAuthenticated, isDriver, validate(createDriverProfileSchema), wrap(controller.createProfile))

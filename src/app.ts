@@ -132,7 +132,7 @@ if (INDEXNOW_KEY) {
 }
 
 // Rotas públicas (sem prefixo /api — o frontend chama com barra inicial que remove o baseURL /api/)
-app.get('/api/settings', async (_req, res) => {
+app.get('/api/settings', async (_req, res, next) => {
   try {
     const s = await adminService.getSettings()
     res.json({
@@ -141,8 +141,8 @@ app.get('/api/settings', async (_req, res) => {
       baseAddress: s.baseAddress ?? null,
       youtubeVideoUrl: s.youtubeVideoUrl ?? null,
     })
-  } catch {
-    res.status(500).json({ error: 'Erro ao buscar configurações' })
+  } catch (err) {
+    next(err)
   }
 })
 
@@ -151,7 +151,7 @@ app.use('/api/event-bookings', eventBookingRoutes)
 app.use('/api/partners', partnerRoutes)
 app.use('/api/testimonials', testimonialRoutes)
 
-app.get('/api/reviews/public', async (_req, res) => {
+app.get('/api/reviews/public', async (_req, res, next) => {
   try {
     const reviews = await prisma.review.findMany({
       where: { isVisible: true, comment: { not: null } },
@@ -166,8 +166,8 @@ app.get('/api/reviews/public', async (_req, res) => {
       take: 20,
     })
     res.json(reviews)
-  } catch {
-    res.status(500).json({ error: 'Erro ao buscar avaliações' })
+  } catch (err) {
+    next(err)
   }
 })
 
@@ -183,6 +183,14 @@ app.use('/api/messages', messageRoutes)
 app.use('/api/trip-parameters', tripParameterRoutes)
 app.use('/api/metrics', metricsRoutes)
 app.use('/api/influencers', influencerRoutes)
+
+app.use((_req, res) => {
+  res.status(404).json({
+    error: 'Rota não encontrada',
+    statusCode: 404,
+    timestamp: new Date().toISOString(),
+  })
+})
 
 app.use(errorHandler)
 

@@ -8,10 +8,7 @@ const router = Router()
 const controller = new InfluencerController()
 
 const wrap = (fn: Function) => (req: any, res: any, next: any) =>
-  Promise.resolve(fn.call(controller, req, res, next)).catch((err: any) => {
-    const status = err.statusCode ?? 400
-    res.status(status).json({ error: err.message })
-  })
+  Promise.resolve(fn.call(controller, req, res, next)).catch(next)
 
 // públicas — sem auth; nunca devem quebrar a página pública mesmo com dados inválidos
 router.get('/public/link/:code', wrap(controller.getPublicLinkInfo))
