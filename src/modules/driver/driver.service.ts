@@ -130,21 +130,29 @@ export class DriverService {
   }
 
   async createProfile(userId: string, data: CreateDriverProfileInput) {
+    // O verify-otp já cria um DriverProfile vazio para o motorista aparecer
+    // em Admin > Motoristas desde a verificação de e-mail. Aqui completamos
+    // esse registro com os dados do Passo 1 — só é "já possui perfil" se
+    // ele já tiver sido preenchido antes (tem endereço ou data de nascimento).
     const existing = await prisma.driverProfile.findUnique({ where: { userId } })
-    if (existing) throw new AppError(409, 'Você já possui um perfil de motorista')
-
-    const createData: Record<string, unknown> = {
-      ...data,
-      userId,
-      vehicleStatus: 'PENDING',
+    if (existing && (existing.address || existing.birthDate)) {
+      throw new AppError(409, 'Você já possui um perfil de motorista')
     }
-    if (data.birthDate) createData.birthDate = new Date(data.birthDate)
-    if (data.licenseExpiry) createData.licenseExpiry = new Date(data.licenseExpiry)
 
-    const profile = await prisma.driverProfile.create({
-      data: createData as any,
-      include: { user: { select: { name: true, email: true } } },
-    })
+    const profileData: Record<string, unknown> = { ...data }
+    if (data.birthDate) profileData.birthDate = new Date(data.birthDate)
+    if (data.licenseExpiry) profileData.licenseExpiry = new Date(data.licenseExpiry)
+
+    const profile = existing
+      ? await prisma.driverProfile.update({
+          where: { userId },
+          data: profileData as any,
+          include: { user: { select: { name: true, email: true } } },
+        })
+      : await prisma.driverProfile.create({
+          data: { ...profileData, userId, vehicleStatus: 'PENDING' } as any,
+          include: { user: { select: { name: true, email: true } } },
+        })
 
     const { subject, html } = tplNovoMotorista({
       driverName: profile.user.name,

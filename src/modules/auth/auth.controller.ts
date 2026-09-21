@@ -15,7 +15,7 @@ export class AuthController {
   }
 
   async verifyOtp(req: Request, res: Response) {
-    const result = await service.verifyOtp(req.body)
+    const result = await service.verifyOtp(req.body, res)
     res.json(result)
   }
 

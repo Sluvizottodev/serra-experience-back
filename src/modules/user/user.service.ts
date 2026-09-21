@@ -31,6 +31,9 @@ export class UserService {
             totalTrips: true,
             // Campos editáveis em "Meu Perfil" — precisam voltar preenchidos
             bio: true,
+            // Definem qual etapa do cadastro em etapas já foi concluída
+            birthDate: true,
+            address: true,
             vehicleMake: true,
             vehicleModel: true,
             vehicleYear: true,

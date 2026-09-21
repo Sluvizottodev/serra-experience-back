@@ -160,9 +160,14 @@ export class AdminService {
   async setDriverApprovalStatus(driverProfileId: string, status: DriverApprovalStatus) {
     const driver = await prisma.driverProfile.findUnique({
       where: { id: driverProfileId },
-      select: { id: true, approvalStatus: true, vehicleStatus: true },
+      select: { id: true, approvalStatus: true, vehicleStatus: true, vehicleMake: true },
     })
     if (!driver) throw Object.assign(new Error('Motorista não encontrado'), { statusCode: 404 })
+    // Aprovar libera o motorista para receber corridas — sem veículo cadastrado
+    // não há o que analisar (o perfil é criado já na verificação de e-mail).
+    if (status === 'APPROVED' && !driver.vehicleMake) {
+      throw new AppError(400, 'Motorista ainda não cadastrou o veículo')
+    }
     if (driver.approvalStatus === status) {
       return prisma.driverProfile.findUnique({
         where: { id: driverProfileId },
@@ -397,7 +402,9 @@ export class AdminService {
         },
       }),
       prisma.driverProfile.findMany({
-        where: { approvalStatus: 'PENDING' },
+        // Só entra na fila de aprovação quem já cadastrou veículo — perfis
+        // recém-criados na verificação de e-mail ainda não têm o que analisar.
+        where: { approvalStatus: 'PENDING', vehicleMake: { not: null } },
         select: {
           id: true,
           vehicleMake: true,

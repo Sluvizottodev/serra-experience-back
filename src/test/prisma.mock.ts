@@ -12,6 +12,7 @@ export const prismaMock = {
   driverProfile: {
     findUnique: vi.fn(),
     update: vi.fn(),
+    create: vi.fn(),
   },
   quote: {
     update: vi.fn(),
@@ -19,6 +20,21 @@ export const prismaMock = {
   user: {
     findFirst: vi.fn(),
     findMany: vi.fn(),
+    findUnique: vi.fn(),
+    create: vi.fn(),
+    update: vi.fn(),
+  },
+  pendingRegistration: {
+    findUnique: vi.fn(),
+    delete: vi.fn(),
+    update: vi.fn(),
+  },
+  otp: {
+    findFirst: vi.fn(),
+    deleteMany: vi.fn(),
+  },
+  refreshToken: {
+    create: vi.fn(),
   },
   review: {
     findUnique: vi.fn(),
