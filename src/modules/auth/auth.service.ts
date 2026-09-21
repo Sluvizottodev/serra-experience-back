@@ -8,7 +8,9 @@ import { encrypt } from '../../common/utils/crypto'
 import { tplOtpVerification, tplPasswordReset } from '../../common/utils/email.templates'
 import type { RegisterInput, LoginInput, VerifyOtpInput, ForgotPasswordInput, ResetPasswordInput } from './auth.schema'
 
-const OTP_EXPIRY_MINUTES = 10
+// 10min era curto demais na prática: cadastros reais ficaram travados porque o
+// código expirava antes da pessoa terminar de copiar/digitar (sem aviso na tela).
+const OTP_EXPIRY_MINUTES = 20
 
 export class AuthService {
   async register(data: RegisterInput) {
@@ -47,30 +49,40 @@ export class AuthService {
     const { subject, html } = tplOtpVerification({ code, expiryMinutes: OTP_EXPIRY_MINUTES })
     await sendMail(data.email, subject, html)
 
-    return { message: 'Código enviado para seu e-mail. Confirme para concluir o cadastro.' }
+    return {
+      message: 'Código enviado para seu e-mail. Confirme para concluir o cadastro.',
+      expiresInSeconds: OTP_EXPIRY_MINUTES * 60,
+    }
+  }
+
+  // Gera e envia um novo código para um cadastro pendente. Silencioso quanto ao
+  // rate limit (retorna sem reenviar) quando `silent` — usado no login, onde
+  // reenviar "por baixo dos panos" não deve virar erro 429 pro usuário.
+  private async resendPendingOtp(pending: { email: string; updatedAt: Date }, silent = false) {
+    const secondsSince = (Date.now() - pending.updatedAt.getTime()) / 1000
+    if (secondsSince < 60) {
+      if (silent) return
+      const wait = Math.ceil(60 - secondsSince)
+      throw new AppError(429, `Aguarde ${wait} segundos antes de solicitar um novo código`)
+    }
+
+    const code = generateOtp()
+    const otpExpiresAt = new Date(Date.now() + OTP_EXPIRY_MINUTES * 60 * 1000)
+    await prisma.pendingRegistration.update({
+      where: { email: pending.email },
+      data: { otpCode: code, otpExpiresAt },
+    })
+
+    const { subject, html } = tplOtpVerification({ code, expiryMinutes: OTP_EXPIRY_MINUTES })
+    await sendMail(pending.email, subject, html)
   }
 
   async resendOtp(email: string) {
     // Verifica primeiro se é um cadastro pendente
     const pending = await prisma.pendingRegistration.findUnique({ where: { email } })
     if (pending) {
-      // Rate limit baseado em updatedAt (quando o último OTP foi enviado)
-      const secondsSince = (Date.now() - pending.updatedAt.getTime()) / 1000
-      if (secondsSince < 60) {
-        const wait = Math.ceil(60 - secondsSince)
-        throw new AppError(429, `Aguarde ${wait} segundos antes de solicitar um novo código`)
-      }
-
-      const code = generateOtp()
-      const otpExpiresAt = new Date(Date.now() + OTP_EXPIRY_MINUTES * 60 * 1000)
-      await prisma.pendingRegistration.update({
-        where: { email },
-        data: { otpCode: code, otpExpiresAt },
-      })
-
-      const { subject, html } = tplOtpVerification({ code, expiryMinutes: OTP_EXPIRY_MINUTES })
-      await sendMail(email, subject, html)
-      return { message: 'Novo código enviado para seu e-mail' }
+      await this.resendPendingOtp(pending)
+      return { message: 'Novo código enviado para seu e-mail', expiresInSeconds: OTP_EXPIRY_MINUTES * 60 }
     }
 
     // Fallback: usuário já existe mas não verificado (edge case de dados antigos)
@@ -90,18 +102,20 @@ export class AuthService {
       }
     }
     await this.sendOtpLegacy(user.id, user.email)
-    return { message: 'Novo código enviado para seu e-mail' }
+    return { message: 'Novo código enviado para seu e-mail', expiresInSeconds: OTP_EXPIRY_MINUTES * 60 }
   }
 
-  async verifyOtp(data: VerifyOtpInput) {
+  async verifyOtp(data: VerifyOtpInput, res: import('express').Response) {
     // Fluxo principal: cadastro pendente
     const pending = await prisma.pendingRegistration.findUnique({ where: { email: data.email } })
     if (pending) {
       if (pending.otpCode !== data.code) throw new AppError(400, 'Código de verificação inválido')
       if (pending.otpExpiresAt < new Date()) throw new AppError(400, 'Código de verificação expirado. Solicite um novo.')
 
-      await prisma.$transaction([
-        prisma.user.create({
+      // O perfil do motorista entra na mesma transação: se ele falhasse depois,
+      // o motorista ficaria sem perfil — justamente o estado que se quer evitar.
+      const user = await prisma.$transaction(async (tx) => {
+        const created = await tx.user.create({
           data: {
             name: pending.name,
             email: pending.email,
@@ -111,16 +125,29 @@ export class AuthService {
             role: pending.role,
             isVerified: true,
           },
-        }),
-        prisma.pendingRegistration.delete({ where: { email: data.email } }),
-      ])
+        })
 
-      return { message: 'E-mail verificado com sucesso. Cadastro concluído!' }
+        // Motorista já nasce com um DriverProfile vazio (status Pendente) para
+        // aparecer em Admin > Motoristas mesmo que abandone o cadastro em etapas
+        // (dados pessoais / veículo) antes de completá-lo.
+        if (created.role === 'DRIVER') {
+          await tx.driverProfile.create({ data: { userId: created.id, vehicleStatus: 'PENDING' } })
+        }
+
+        await tx.pendingRegistration.delete({ where: { email: data.email } })
+        return created
+      })
+
+      return this.issueSession(user, res, 'E-mail verificado com sucesso. Cadastro concluído!')
     }
 
     // Fallback: usuário legado (isVerified: false) ainda na tabela users
     const user = await prisma.user.findUnique({ where: { email: data.email } })
     if (!user) throw new AppError(404, 'Usuário não encontrado')
+    // Este caminho emite uma sessão, então só pode valer para quem ainda não
+    // verificou o e-mail — senão vira um login alternativo, sem senha, para
+    // qualquer conta que tenha um OTP de 6 dígitos ainda válido na tabela.
+    if (user.isVerified) throw new AppError(400, 'E-mail já verificado')
 
     const otp = await prisma.otp.findFirst({
       where: { userId: user.id, code: data.code },
@@ -129,28 +156,26 @@ export class AuthService {
     if (!otp) throw new AppError(400, 'Código de verificação inválido')
     if (otp.expiresAt < new Date()) throw new AppError(400, 'Código de verificação expirado. Solicite um novo.')
 
-    await prisma.user.update({ where: { id: user.id }, data: { isVerified: true } })
+    const updated = await prisma.user.update({ where: { id: user.id }, data: { isVerified: true } })
     await prisma.otp.deleteMany({ where: { userId: user.id } })
 
-    return { message: 'E-mail verificado com sucesso' }
+    // Usuário legado pode ser motorista sem DriverProfile — cria para manter a
+    // mesma garantia do fluxo novo: motorista verificado aparece em Admin > Motoristas.
+    if (updated.role === 'DRIVER') {
+      const profile = await prisma.driverProfile.findUnique({ where: { userId: updated.id } })
+      if (!profile) {
+        await prisma.driverProfile.create({ data: { userId: updated.id, vehicleStatus: 'PENDING' } })
+      }
+    }
+
+    return this.issueSession(updated, res, 'E-mail verificado com sucesso')
   }
 
-  private async sendOtpLegacy(userId: string, email: string) {
-    await prisma.otp.deleteMany({ where: { userId } })
-    const code = generateOtp()
-    const expiresAt = new Date(Date.now() + OTP_EXPIRY_MINUTES * 60 * 1000)
-    await prisma.otp.create({ data: { code, userId, expiresAt } })
-    const { subject, html } = tplOtpVerification({ code, expiryMinutes: OTP_EXPIRY_MINUTES })
-    await sendMail(email, subject, html)
-  }
-
-  async login(data: LoginInput, res: import('express').Response) {
-    const user = await prisma.user.findUnique({ where: { email: data.email } })
-    if (!user) throw new AppError(401, 'Credenciais inválidas. Verifique seu e-mail e senha.')
-
-    const valid = await bcrypt.compare(data.password, user.password)
-    if (!valid) throw new AppError(401, 'Credenciais inválidas. Verifique seu e-mail e senha.')
-
+  private async issueSession(
+    user: { id: string; name: string; email: string; role: string; isVerified: boolean; avatarUrl: string | null },
+    res: import('express').Response,
+    message?: string,
+  ) {
     const payload = { id: user.id, role: user.role, email: user.email }
     const accessToken = signAccessToken(payload)
     const refreshToken = signRefreshToken(payload)
@@ -171,6 +196,7 @@ export class AuthService {
     })
 
     return {
+      ...(message ? { message } : {}),
       accessToken,
       user: {
         id: user.id,
@@ -181,6 +207,42 @@ export class AuthService {
         avatarUrl: user.avatarUrl,
       },
     }
+  }
+
+  private async sendOtpLegacy(userId: string, email: string) {
+    await prisma.otp.deleteMany({ where: { userId } })
+    const code = generateOtp()
+    const expiresAt = new Date(Date.now() + OTP_EXPIRY_MINUTES * 60 * 1000)
+    await prisma.otp.create({ data: { code, userId, expiresAt } })
+    const { subject, html } = tplOtpVerification({ code, expiryMinutes: OTP_EXPIRY_MINUTES })
+    await sendMail(email, subject, html)
+  }
+
+  async login(data: LoginInput, res: import('express').Response) {
+    const user = await prisma.user.findUnique({ where: { email: data.email } })
+    if (!user) {
+      // Cadastro parado na confirmação: a pessoa já tem senha salva, mas nunca
+      // virou User. Confirma a senha antes de expor que há uma verificação
+      // pendente, senão dá pra descobrir por tentativa quem tem cadastro parado.
+      const pending = await prisma.pendingRegistration.findUnique({ where: { email: data.email } })
+      if (pending && (await bcrypt.compare(data.password, pending.password))) {
+        // Reenvia por baixo dos panos (respeitando o rate limit, sem quebrar o
+        // login se já tiver sido reenviado há pouco) para a pessoa já achar um
+        // código novo esperando ao cair na tela de confirmação.
+        await this.resendPendingOtp(pending, true)
+        throw new AppError(403, 'Confirme seu cadastro para continuar. Reenviamos o código para o seu e-mail.', {
+          reason: 'pending_verification',
+          email: pending.email,
+          role: pending.role,
+        })
+      }
+      throw new AppError(401, 'Credenciais inválidas. Verifique seu e-mail e senha.')
+    }
+
+    const valid = await bcrypt.compare(data.password, user.password)
+    if (!valid) throw new AppError(401, 'Credenciais inválidas. Verifique seu e-mail e senha.')
+
+    return this.issueSession(user, res)
   }
 
   async refreshToken(token: string, res: import('express').Response) {
