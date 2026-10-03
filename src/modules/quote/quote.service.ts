@@ -177,13 +177,17 @@ export class QuoteService {
     let distanceKm: number | null = null
     let durationMin: number | null = null
     let distanceMethod: 'route' | 'estimate' | null = null
+    let distanceApproximate = false
+    let distanceError: string | null = null
     try {
       const route = await getRouteDistance(data.originAddress, data.destinationAddress)
-      distanceKm     = route.distanceKm
-      durationMin    = route.durationMin
-      distanceMethod = route.method
+      distanceKm          = route.distanceKm
+      durationMin         = route.durationMin
+      distanceMethod      = route.method
+      distanceApproximate = route.approximate
     } catch (err) {
-      console.warn('[preview] calculo de distancia falhou:', (err as Error).message)
+      distanceError = (err as Error).message
+      console.warn('[preview] calculo de distancia falhou:', distanceError)
     }
 
     // Sem preço base configurado: não há estimativa de valor
@@ -193,11 +197,13 @@ export class QuoteService {
         distanceKm,
         durationMin,
         distanceMethod,
+        distanceApproximate,
+        distanceError,
         estimatedRange: null,
         commissionRate,
         note: !basePricePerKm
           ? 'Preco base por km nao configurado nas definicoes.'
-          : 'Nao foi possivel calcular a distancia para esta rota.',
+          : 'Nao foi possivel calcular a distancia para esta rota. Confira os enderecos.',
       }
     }
 
@@ -229,11 +235,13 @@ export class QuoteService {
       distanceKm,
       durationMin,
       distanceMethod,
+      distanceApproximate,
+      distanceError,
       estimatedRange,
       commissionRate,
       note: distanceMethod === 'route'
         ? 'Estimativa baseada na distancia real da rota e nos parametros do sistema.'
-        : 'Distancia estimada (rota aproximada). O valor final e definido pelo administrador.',
+        : 'Distancia APROXIMADA (nao foi possivel tracar a rota real). O valor final e definido pelo administrador.',
     }
   }
 
