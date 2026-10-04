@@ -41,7 +41,22 @@ interface Coordinates {
   lng: number
 }
 
+/** Coordenada mais a precisão com que foi obtida. */
+interface GeocodeHit extends Coordinates {
+  precision: GeocodePrecision
+}
+
 export type DistanceMethod = 'route' | 'estimate'
+
+/**
+ * Quão preciso foi o geocoding de um endereço.
+ *
+ * Importa porque a distância vira preço: Nova Friburgo → Petrópolis dá
+ * 128.1 km com rua nas duas pontas e 116.1 km quando o destino é só a
+ * cidade — 12 km e ~R$ 46 de diferença para a mesma viagem. Resolver no
+ * centro do município é um palpite razoável, não um endereço medido.
+ */
+export type GeocodePrecision = 'address' | 'city'
 
 export interface RouteResult {
   distanceKm: number
@@ -50,11 +65,20 @@ export interface RouteResult {
   /** Provedor que resolveu a rota — para diagnóstico e logs. */
   provider: string
   /**
-   * true quando a distância vem de aproximação (linha reta × fator), não de
-   * rota real por estrada. A camada de apresentação DEVE sinalizar isso ao
-   * usuário em vez de apresentar o número como se fosse exato.
+   * true quando o número não deve ser apresentado como exato — porque a rota
+   * veio de aproximação (linha reta × fator) **ou** porque alguma ponta foi
+   * resolvida apenas em nível de cidade, sem rua.
+   *
+   * A camada de apresentação DEVE sinalizar isso ao usuário.
    */
   approximate: boolean
+  /**
+   * Por que o resultado é aproximado, quando é. `null` quando é exato.
+   * Serve para a interface explicar ao usuário o que melhoraria a precisão.
+   */
+  approximateReason: 'rota-indisponivel' | 'endereco-sem-rua' | null
+  /** Precisão do geocoding de cada ponta. */
+  precision: { origin: GeocodePrecision; destination: GeocodePrecision }
 }
 
 /** Limites do território brasileiro, usados para sanidade do geocoding. */
@@ -111,14 +135,20 @@ function addressVariants(address: string): string[] {
   return [...new Set(variants)]
 }
 
-/** Geocodifica via Nominatim (OpenStreetMap) restrito ao Brasil. */
-async function geocodeNominatim(address: string): Promise<Coordinates> {
+/**
+ * Geocodifica via Nominatim (OpenStreetMap) restrito ao Brasil.
+ *
+ * `addressdetails=1` é necessário para saber se o ponto foi resolvido em nível
+ * de rua (`address.road` presente) ou apenas de município — o que determina se
+ * a distância pode ser apresentada como exata.
+ */
+async function geocodeNominatim(address: string): Promise<GeocodeHit> {
   const params = new URLSearchParams({
     q: address,
     format: 'json',
     limit: '1',
     countrycodes: 'br',
-    addressdetails: '0',
+    addressdetails: '1',
   })
   const res = await fetchWithTimeout(`${NOMINATIM_BASE}/search?${params}`, {
     headers: NOMINATIM_HEADERS,
@@ -126,23 +156,56 @@ async function geocodeNominatim(address: string): Promise<Coordinates> {
   if (!res.ok) throw new Error(`Nominatim falhou: ${res.status}`)
   const json = (await res.json()) as any[]
   if (!json.length) throw new Error(`Nominatim: endereço não encontrado: "${address}"`)
-  return { lat: parseFloat(json[0].lat), lng: parseFloat(json[0].lon) }
+  const hit = json[0]
+  return {
+    lat: parseFloat(hit.lat),
+    lng: parseFloat(hit.lon),
+    precision: hit.address?.road ? 'address' : 'city',
+  }
 }
 
-/** Geocodifica via Photon (Komoot) — sem chave, bom com erros de digitação. */
-async function geocodePhoton(address: string): Promise<Coordinates> {
-  const params = new URLSearchParams({ q: address, limit: '1', lang: 'pt' })
+/**
+ * Geocodifica via Photon (Komoot) — sem chave, é a reserva do Nominatim.
+ *
+ * Sem `lang`: o Photon só aceita `default`, `de`, `en` e `fr`, e devolve
+ * **400** para `pt`. Era por isso que esta reserva nunca funcionava, deixando
+ * o Nominatim como ponto único de falha do cálculo de distância. Nome de
+ * cidade brasileira não depende do idioma da resposta.
+ */
+async function geocodePhoton(address: string): Promise<GeocodeHit> {
+  // limit maior que 1 de propósito: o primeiro resultado costuma ser uma rua
+  // homônima noutra cidade, e aqui se busca a localidade.
+  const params = new URLSearchParams({ q: address, limit: '8' })
   const res = await fetchWithTimeout(`${PHOTON_BASE}/api?${params}`)
   if (!res.ok) throw new Error(`Photon falhou: ${res.status}`)
   const json = (await res.json()) as any
-  const feat = json.features?.[0]
-  if (!feat) throw new Error(`Photon: endereço não encontrado: "${address}"`)
-  const [lng, lat] = feat.geometry.coordinates as [number, number]
-  return { lat, lng }
+  const feats = (json.features ?? []) as any[]
+  if (!feats.length) throw new Error(`Photon: endereço não encontrado: "${address}"`)
+
+  /**
+   * Prefere município/cidade/vila a logradouro.
+   *
+   * Sem isso, "Conservatoria, RJ" casava com a *Rua* Conservatória na capital
+   * (−22.91, −43.56) em vez da localidade homônima em Valença (−22.29,
+   * −43.93) — 172.8 km de rota contra 243.1 km reais, 29% de erro.
+   */
+  const rank = (f: any): number => {
+    const v = String(f?.properties?.osm_value ?? '')
+    if (['city', 'municipality', 'town', 'village', 'hamlet'].includes(v)) return 0
+    if (v === 'administrative') return 1
+    return 2
+  }
+
+  const best = [...feats].sort((a, b) => rank(a) - rank(b))[0]
+  const [lng, lat] = best.geometry.coordinates as [number, number]
+  // `street` vem preenchido quando o Photon resolveu um logradouro.
+  const hasStreet = Boolean(best.properties?.street) ||
+    String(best.properties?.osm_key ?? '') === 'highway'
+  return { lat, lng, precision: hasStreet ? 'address' : 'city' }
 }
 
 /** Geocodifica via ORS, restrito ao retângulo do Brasil. Exige chave. */
-async function geocodeORS(address: string): Promise<Coordinates> {
+async function geocodeORS(address: string): Promise<GeocodeHit> {
   if (!env.OPENROUTE_API_KEY) throw new Error('OPENROUTE_API_KEY não configurada')
   const params = new URLSearchParams({
     api_key: env.OPENROUTE_API_KEY,
@@ -159,11 +222,16 @@ async function geocodeORS(address: string): Promise<Coordinates> {
   const feature = json.features?.[0]
   if (!feature) throw new Error(`ORS: endereço não encontrado: "${address}"`)
   const [lng, lat] = feature.geometry.coordinates as [number, number]
-  return { lat, lng }
+  const layer = String(feature.properties?.layer ?? '')
+  return {
+    lat,
+    lng,
+    precision: layer === 'address' || layer === 'street' ? 'address' : 'city',
+  }
 }
 
 /** Cache em memória do geocoding — endereços repetem muito entre orçamentos. */
-const geocodeCache = new Map<string, Coordinates>()
+const geocodeCache = new Map<string, GeocodeHit>()
 const GEOCODE_CACHE_MAX = 500
 
 /**
@@ -171,14 +239,14 @@ const GEOCODE_CACHE_MAX = 500
  * cada um sobre variações progressivamente mais amplas do endereço.
  * Só aceita coordenada dentro do Brasil.
  */
-async function geocode(address: string, label: string): Promise<Coordinates> {
+async function geocode(address: string, label: string): Promise<GeocodeHit> {
   const variants = addressVariants(address)
   const cacheKey = variants[0].toLowerCase()
 
   const cached = geocodeCache.get(cacheKey)
   if (cached) return cached
 
-  const providers: Array<[string, (a: string) => Promise<Coordinates>]> = [
+  const providers: Array<[string, (a: string) => Promise<GeocodeHit>]> = [
     ['Nominatim', geocodeNominatim],
     ['Photon', geocodePhoton],
   ]
@@ -324,6 +392,17 @@ export async function getRouteDistance(
     geocode(destinationAddress, 'Destino'),
   ])
 
+  const precision = { origin: origin.precision, destination: destination.precision }
+
+  /**
+   * Alguma ponta resolveu só no centro do município: a rota é real, mas
+   * parte de um ponto que é palpite, não o endereço do passageiro. Medido:
+   * Nova Friburgo → Petrópolis dá 128.1 km com rua nas duas pontas e
+   * 116.1 km com o destino só em cidade — ~R$ 46 de diferença no preço.
+   * Por isso o número não pode ser apresentado como exato.
+   */
+  const coarse = precision.origin === 'city' || precision.destination === 'city'
+
   const straight = haversineKm(origin, destination)
 
   const routeProviders: Array<[string, typeof osrmDirections]> = [['OSRM', osrmDirections]]
@@ -338,7 +417,14 @@ export async function getRouteDistance(
         )
         continue
       }
-      return { ...route, method: 'route', provider: name, approximate: false }
+      return {
+        ...route,
+        method: 'route',
+        provider: name,
+        approximate: coarse,
+        approximateReason: coarse ? 'endereco-sem-rua' : null,
+        precision,
+      }
     } catch (err) {
       console.warn(`[geo] ${name} falhou: ${(err as Error).message}`)
     }
@@ -360,5 +446,8 @@ export async function getRouteDistance(
     method: 'estimate',
     provider: `haversine×${SERRA_DETOUR_FACTOR}`,
     approximate: true,
+    // Sem rota real, esse é o motivo dominante — mesmo que falte rua também.
+    approximateReason: 'rota-indisponivel',
+    precision,
   }
 }

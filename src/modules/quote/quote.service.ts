@@ -14,6 +14,26 @@ const DEFAULT_ASSIGN_EXPIRY_HOURS = 24
 
 const QUOTE_EXPIRY_HOURS = 48
 
+/**
+ * Texto que explica ao usuario a confiabilidade do numero.
+ *
+ * Distingue os dois motivos de aproximacao, porque a acao do usuario e
+ * diferente: sem rua ele pode melhorar informando o endereco completo;
+ * sem rota nao ha nada que ele possa fazer.
+ */
+function buildNote(
+  method: 'route' | 'estimate' | null,
+  reason: string | null,
+): string {
+  if (reason === 'endereco-sem-rua') {
+    return 'Distancia aproximada: calculada entre os centros das cidades. Informe rua e numero para um valor mais preciso.'
+  }
+  if (method === 'estimate' || reason === 'rota-indisponivel') {
+    return 'Distancia APROXIMADA (nao foi possivel tracar a rota real). O valor final e definido pelo administrador.'
+  }
+  return 'Estimativa baseada na distancia real da rota e nos parametros do sistema.'
+}
+
 export class QuoteService {
   async createQuote(passengerId: string, data: CreateQuoteInput) {
     const expiresAt = new Date(Date.now() + QUOTE_EXPIRY_HOURS * 60 * 60 * 1000)
@@ -178,16 +198,20 @@ export class QuoteService {
     let durationMin: number | null = null
     let distanceMethod: 'route' | 'estimate' | null = null
     let distanceApproximate = false
+    let distanceApproximateReason: string | null = null
     let distanceError: string | null = null
     try {
       const route = await getRouteDistance(data.originAddress, data.destinationAddress)
-      distanceKm          = route.distanceKm
-      durationMin         = route.durationMin
-      distanceMethod      = route.method
-      distanceApproximate = route.approximate
+      distanceKm                = route.distanceKm
+      durationMin               = route.durationMin
+      distanceMethod            = route.method
+      distanceApproximate       = route.approximate
+      distanceApproximateReason = route.approximateReason
     } catch (err) {
-      distanceError = (err as Error).message
-      console.warn('[preview] calculo de distancia falhou:', distanceError)
+      // O detalhe técnico (provedores tentados, status HTTP) fica só no log.
+      // Para o cliente vai uma mensagem útil, sem expor a infraestrutura.
+      console.warn('[preview] calculo de distancia falhou:', (err as Error).message)
+      distanceError = 'Nao foi possivel localizar um dos enderecos informados.'
     }
 
     // Sem preço base configurado: não há estimativa de valor
@@ -198,6 +222,7 @@ export class QuoteService {
         durationMin,
         distanceMethod,
         distanceApproximate,
+        distanceApproximateReason,
         distanceError,
         estimatedRange: null,
         commissionRate,
@@ -236,12 +261,11 @@ export class QuoteService {
       durationMin,
       distanceMethod,
       distanceApproximate,
+      distanceApproximateReason,
       distanceError,
       estimatedRange,
       commissionRate,
-      note: distanceMethod === 'route'
-        ? 'Estimativa baseada na distancia real da rota e nos parametros do sistema.'
-        : 'Distancia APROXIMADA (nao foi possivel tracar a rota real). O valor final e definido pelo administrador.',
+      note: buildNote(distanceMethod, distanceApproximateReason),
     }
   }
 
