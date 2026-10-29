@@ -45,8 +45,12 @@ describe('previewQuote sem OPENROUTE_API_KEY', () => {
       expect(res.distanceKm).toBeGreaterThan(230)
       expect(res.distanceKm).toBeLessThan(260)
       expect(res.distanceMethod).toBe('route')
-      expect(res.distanceApproximate).toBe(false)
       expect(res.distanceError).toBeNull()
+
+      // Só cidades no endereço: rota real, mas entre centros de município.
+      expect(res.distanceApproximate).toBe(true)
+      expect(res.distanceApproximateReason).toBe('endereco-sem-rua')
+      expect(res.note).toContain('aproximada')
 
       // Com preço base configurado, a faixa de valor sai calculada.
       expect(res.estimatedRange).not.toBeNull()

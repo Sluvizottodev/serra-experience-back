@@ -44,8 +44,13 @@ describe('getRouteDistance sem OPENROUTE_API_KEY', () => {
 
       // Tem de ser rota real por estrada, sem depender de chave nenhuma.
       expect(r.method).toBe('route')
-      expect(r.approximate).toBe(false)
       expect(r.provider).toBe('OSRM')
+
+      // Só cidades, sem rua: a rota é real, mas liga centros de município,
+      // então o número não pode ser apresentado como exato.
+      expect(r.approximate).toBe(true)
+      expect(r.approximateReason).toBe('endereco-sem-rua')
+      expect(r.precision).toEqual({ origin: 'city', destination: 'city' })
 
       // ~243 km. O bug antigo devolvia 199.2 km aqui.
       expect(r.distanceKm).toBeGreaterThan(230)
@@ -65,6 +70,7 @@ describe('getRouteDistance sem OPENROUTE_API_KEY', () => {
         'Teresopolis, RJ',
       )
       expect(r.method).toBe('route')
+      expect(r.precision.origin).toBe('address')
       expect(r.distanceKm).toBeGreaterThan(40)
       expect(r.distanceKm).toBeLessThan(80)
     },
@@ -92,10 +98,45 @@ describe('getRouteDistance sem OPENROUTE_API_KEY', () => {
       // 0 km é a resposta correta aqui: tem de vir do roteador, sem cair no
       // fallback nem disparar alerta falso.
       expect(r.method).toBe('route')
-      expect(r.approximate).toBe(false)
       expect(alerta).not.toHaveBeenCalled()
 
       alerta.mockRestore()
+    },
+    NET_TIMEOUT,
+  )
+})
+
+describe('precisão do endereço marca o resultado', () => {
+  beforeEach(() => {
+    delete process.env.OPENROUTE_API_KEY
+  })
+
+  it(
+    'rua nas duas pontas: distância exata, sem marca de aproximação',
+    async () => {
+      const r = await getRouteDistance(
+        'Rua Alberto Braune, 100, Nova Friburgo, RJ',
+        'Rua Teresa, 50, Petropolis, RJ',
+      )
+      expect(r.precision).toEqual({ origin: 'address', destination: 'address' })
+      expect(r.approximate).toBe(false)
+      expect(r.approximateReason).toBeNull()
+    },
+    NET_TIMEOUT,
+  )
+
+  it(
+    'uma ponta sem rua já torna o resultado aproximado',
+    async () => {
+      // Medido: 128.1 km com rua nas duas pontas, 116.1 km com o destino
+      // só em cidade — ~R$ 46 de diferença no preço final.
+      const r = await getRouteDistance(
+        'Rua Alberto Braune, 100, Nova Friburgo, RJ',
+        'Petropolis, RJ',
+      )
+      expect(r.precision.destination).toBe('city')
+      expect(r.approximate).toBe(true)
+      expect(r.approximateReason).toBe('endereco-sem-rua')
     },
     NET_TIMEOUT,
   )
@@ -129,6 +170,7 @@ describe('fallback quando nenhum roteador responde', () => {
 
       expect(r.method).toBe('estimate')
       expect(r.approximate).toBe(true)
+      expect(r.approximateReason).toBe('rota-indisponivel')
       expect(r.provider).toContain('haversine')
 
       // Com fator 1.63 a aproximação fica ~240 km contra 243.1 reais (~1%).

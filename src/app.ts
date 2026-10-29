@@ -22,6 +22,7 @@ import { tripParameterRoutes } from './modules/trip-parameter/trip-parameter.rou
 import { metricsRoutes } from './modules/metrics/metrics.routes'
 import { notificationRoutes } from './modules/notification/notification.routes'
 import { influencerRoutes } from './modules/influencer/influencer.routes'
+import { placeRoutes } from './modules/place/place.routes'
 import { AdminService } from './modules/admin/admin.service'
 import { prisma } from './common/config/prisma'
 
@@ -150,6 +151,7 @@ app.use('/api/events', eventRoutes)
 app.use('/api/event-bookings', eventBookingRoutes)
 app.use('/api/partners', partnerRoutes)
 app.use('/api/testimonials', testimonialRoutes)
+app.use('/api/places', placeRoutes)
 
 app.get('/api/reviews/public', async (_req, res, next) => {
   try {
