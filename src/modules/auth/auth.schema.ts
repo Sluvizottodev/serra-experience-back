@@ -10,10 +10,8 @@ export const registerSchema = z.object({
     .transform(e => e.toLowerCase().trim()),
   password: z.string()
     .min(8, 'Senha deve ter pelo menos 8 caracteres')
-    .regex(/[A-Z]/, 'Senha deve conter uma letra maiúscula')
-    .regex(/[a-z]/, 'Senha deve conter uma letra minúscula')
-    .regex(/[0-9]/, 'Senha deve conter um número')
-    .regex(/[!@#$%^&*]/, 'Senha deve conter um caractere especial (!@#$%^&*)'),
+    .regex(/[A-Za-z]/, 'Senha deve conter uma letra')
+    .regex(/[0-9]/, 'Senha deve conter um número'),
   phone: z.string()
     .regex(/^\d{10,11}$/, 'Telefone inválido')
     .optional(),
@@ -57,10 +55,8 @@ export const resetPasswordSchema = z.object({
   token: z.string().length(64, 'Token inválido').regex(/^[a-f0-9]{64}$/, 'Token inválido'),
   password: z.string()
     .min(8, 'Senha deve ter pelo menos 8 caracteres')
-    .regex(/[A-Z]/, 'Senha deve conter uma letra maiúscula')
-    .regex(/[a-z]/, 'Senha deve conter uma letra minúscula')
-    .regex(/[0-9]/, 'Senha deve conter um número')
-    .regex(/[!@#$%^&*]/, 'Senha deve conter um caractere especial (!@#$%^&*)'),
+    .regex(/[A-Za-z]/, 'Senha deve conter uma letra')
+    .regex(/[0-9]/, 'Senha deve conter um número'),
 })
 
 export type RegisterInput = z.infer<typeof registerSchema>
